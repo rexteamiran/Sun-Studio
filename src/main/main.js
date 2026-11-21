@@ -434,6 +434,13 @@ app.whenReady().then(async () => {
           );
           await new Promise((r) => setTimeout(r, 1000));
         }
+        const click = process.env.SUN_CLICK;
+        if (click) {
+          await win.webContents.executeJavaScript(
+            `(() => { const b = document.querySelector(${JSON.stringify(click)}); if (b) b.click(); return !!b; })();`
+          );
+          await new Promise((r) => setTimeout(r, 800));
+        }
         const img = await win.webContents.capturePage();
         fs.writeFileSync(process.env.SUN_SHOT || '/tmp/sun-shot.png', img.toPNG());
         console.log('SMOKE_OK');

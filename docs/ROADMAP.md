@@ -4,7 +4,7 @@ Living document — when you ship a milestone, move leftovers here and note deci
 `CHANGELOG.md`. Keep scope per release small (one theme + fixes) so the tag-driven release
 routine stays boring.
 
-## v0.0.5 — next candidates
+## v0.0.6 — next candidates
 - More providers on the same layer (Stability AI, fal.ai, OpenRouter) — see
   `docs/PROVIDERS.md` § "Adding a provider"; each is one registry entry + client + mirror.
 - Batch export from Gallery (zip or folder pick).
@@ -38,3 +38,6 @@ routine stays boring.
 - 2026-11-21 — v0.0.4: provider error bodies are parsed in full (`error.message` / `message` /
   plain text) instead of leaking bare HTTP codes; 402 became actionable with a per-provider
   `billingUrl`, and toasts render clickable external links.
+- 2026-11-21 — v0.0.5: the entire palette moved to CSS variables with six themes
+  (sunset/ember/ocean/forest/violet/paper) switchable in Settings → Appearance and persisted in
+  the store; Create gained a searchable model picker with badges; dall-e-3 added for OpenAI.

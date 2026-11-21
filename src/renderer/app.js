@@ -19,6 +19,7 @@ const PROVIDERS_META = {
     models: [
       { id: 'gpt-image-1', label: 'gpt-image-1 · best quality' },
       { id: 'gpt-image-1-mini', label: 'gpt-image-1-mini · faster & cheaper' },
+      { id: 'dall-e-3', label: 'dall-e-3 · classic' },
     ],
     defaultModel: 'gpt-image-1',
   },
@@ -255,7 +256,139 @@ function populateViewOptions(view) {
 
 function populateAllViewOptions() {
   for (const v of ['create', 'edit', 'restyle']) populateViewOptions(v);
+  renderModelPicker();
   updateMaskNote();
+}
+
+// ---------- themes ----------
+const THEMES = [
+  { id: 'sunset', name: 'Sunset', sw: ['#0b0906', '#ffb648', '#ff7d1f'] },
+  { id: 'ember', name: 'Ember', sw: ['#0d0705', '#ff9a5c', '#ff6b35'] },
+  { id: 'ocean', name: 'Ocean', sw: ['#060b12', '#4cc3ff', '#2f8fff'] },
+  { id: 'forest', name: 'Forest', sw: ['#070c08', '#6fd98a', '#34b96f'] },
+  { id: 'violet', name: 'Violet', sw: ['#0a0710', '#b48cff', '#8f5cff'] },
+  { id: 'paper', name: 'Paper', sw: ['#f4efe4', '#e8940a', '#c97a08'] },
+];
+
+function applyTheme(id) {
+  document.documentElement.dataset.theme = THEMES.some((t) => t.id === id) ? id : 'sunset';
+}
+
+function renderThemeCards() {
+  const grid = $('#theme-grid');
+  if (!grid) return;
+  const cur = ((state.settings && state.settings.settings) || {}).theme || 'sunset';
+  grid.innerHTML = '';
+  for (const t of THEMES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'theme-card' + (t.id === cur ? ' active' : '');
+    b.innerHTML =
+      '<span class="sw">' + t.sw.map((c) => '<i style="background:' + c + '"></i>').join('') + '</span>' +
+      '<span>' + esc(t.name) + '</span><span class="tick">✓</span>';
+    b.addEventListener('click', async () => {
+      applyTheme(t.id);
+      try {
+        state.settings = await api.updateSettings({ theme: t.id });
+        renderThemeCards();
+        toast(t.name + ' theme applied.', 'ok', 2200);
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    });
+    grid.appendChild(b);
+  }
+}
+
+// ---------- create view model picker ----------
+function splitModelLabel(label) {
+  const parts = String(label || '').split('·');
+  return { name: (parts[0] || '').trim(), badge: parts.length > 1 ? parts.slice(1).join('·').trim() : '' };
+}
+
+/** Paint the Create model button + popover from the active provider's models. */
+function renderModelPicker() {
+  const wrap = $('#create-model-wrap');
+  if (!wrap) return;
+  const m = meta();
+  const ids = modelChoices(state.provider);
+  const cur = modelFor();
+  const info = m.models.find((x) => x.id === cur);
+  $('#create-model-name').textContent = info ? splitModelLabel(info.label).name : cur;
+
+  const list = $('#create-model-list');
+  const q = ($('#model-search').value || '').trim().toLowerCase();
+  let shown = ids.filter((id) => !q || id.toLowerCase().includes(q) || (m.models.find((x) => x.id === id) || {}).label?.toLowerCase?.().includes(q));
+  if (cur && !shown.includes(cur)) shown = [cur, ...shown];
+  list.innerHTML = '';
+  if (!shown.length) {
+    const p = document.createElement('div');
+    p.className = 'model-empty';
+    p.textContent = 'No match — press Enter to use "' + ($('#model-search').value || '').trim() + '".';
+    list.appendChild(p);
+    return;
+  }
+  for (const id of shown) {
+    const mm = m.models.find((x) => x.id === id);
+    const { name, badge } = mm ? splitModelLabel(mm.label) : { name: id, badge: '' };
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'model-item' + (id === cur ? ' active' : '');
+    b.title = id;
+    b.innerHTML =
+      '<span class="dot"></span><span>' + esc(name) + '</span>' +
+      (badge ? '<span class="model-badge">' + esc(badge) + '</span>' : '');
+    b.addEventListener('click', () => pickModel(id));
+    list.appendChild(b);
+  }
+}
+
+async function pickModel(id) {
+  try {
+    const models = {};
+    models[state.provider] = id;
+    state.settings = await api.updateSettings({ models });
+    closeModelPicker();
+    renderModelPicker();
+    fillSettings();
+    toast('Model set to ' + id + '.', 'ok', 2400);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function closeModelPicker() {
+  const wrap = $('#create-model-wrap');
+  if (wrap) wrap.classList.remove('open');
+}
+
+function bindModelPicker() {
+  const wrap = $('#create-model-wrap');
+  if (!wrap) return;
+  $('#create-model-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = wrap.classList.toggle('open');
+    if (open) {
+      $('#model-search').value = '';
+      renderModelPicker();
+      $('#model-search').focus();
+    }
+  });
+  $('#model-search').addEventListener('input', renderModelPicker);
+  $('#model-search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = $('#model-search').value.trim();
+      if (v) pickModel(v);
+    }
+  });
+  $('#model-search').addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) closeModelPicker();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && wrap.classList.contains('open')) closeModelPicker();
+  });
 }
 
 // ---------- settings / key UI ----------
@@ -282,6 +415,7 @@ async function refreshSettings() {
     state.settings = { provider: 'aipass', settings: {}, providers: {}, customProviders: [] };
   }
   state.provider = (state.settings && state.settings.provider) || 'aipass';
+  applyTheme(((state.settings && state.settings.settings) || {}).theme);
   paintKeyUi();
 }
 
@@ -496,6 +630,7 @@ function fillSettings() {
   $('#outdir-label').title = d.outputDir || '';
   $('#autosave').checked = !!d.autoSave;
   $('#check-updates').checked = d.checkUpdates !== false;
+  renderThemeCards();
 
   if (state.info) {
     $('#about-info').textContent = 'v' + state.info.version + ' · Electron ' + state.info.electron;
@@ -1290,10 +1425,10 @@ function createMockApi() {
     });
 
   return {
-    getInfo: async () => ({ version: '0.0.3', electron: 'mock', platform: 'browser', encryption: 'none', packaged: false }),
+    getInfo: async () => ({ version: '0.0.5', electron: 'mock', platform: 'browser', encryption: 'none', packaged: false }),
     getSettings: async () => ({
       provider: 'aipass',
-      settings: { models: { openai: 'gpt-image-1', aipass: 'gpt-image-1', google: 'gemini-nano-banana-2.1' }, size: '1:1', quality: 'medium', imageSize: '1K', outputDir: '', autoSave: false, checkUpdates: true },
+      settings: { models: { openai: 'gpt-image-1', aipass: 'gpt-image-1', google: 'gemini-nano-banana-2.1' }, size: '1:1', quality: 'medium', imageSize: '1K', theme: 'sunset', outputDir: '', autoSave: false, checkUpdates: true },
       providers: {
         openai: { hasKey: false, encrypted: false, hint: '' },
         aipass: { hasKey: false, encrypted: false, hint: '' },
@@ -1401,6 +1536,7 @@ function bindWinControls() {
   bindModal();
   bindUpdateChip();
   bindCustomForm();
+  bindModelPicker();
   bindWinControls();
   try {
     state.info = await api.getInfo();

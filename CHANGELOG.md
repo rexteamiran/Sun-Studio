@@ -4,6 +4,24 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.5] — 2026-11-21
+
+### Added
+- **Model picker in Create** — the studio panel finally has its own Model selector: a styled
+  popover listing every model of the active provider (static + fetched live lists), with
+  description badges (recommended / fastest / best quality / classic…), a search box that also
+  accepts any raw model id on Enter, and one-click switching that saves the per-provider default.
+- **Themes** — six switchable UI themes in Settings → Appearance: Sunset (default warm gold),
+  Ember, Ocean, Forest, Violet and Paper (light). The whole palette is CSS-variable driven now;
+  the choice is persisted in app settings and applied on startup.
+- **More models** — dall-e-3 added to the OpenAI provider list (the client already maps its
+  sizes 1792x1024/1024x1792 and standard/hd quality correctly).
+
+### Improved
+- Visual overhaul: layered background glows, soft panel shadows, refined buttons/inputs/chips,
+  consistent accent-driven focus rings, adaptive empty-state artwork, active provider pill and
+  nav polish. Every previously hardcoded color now follows the active theme.
+
 ## [0.0.4] — 2026-11-21
 
 ### Fixed

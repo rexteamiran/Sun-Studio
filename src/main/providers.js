@@ -37,6 +37,7 @@ const PROVIDERS = {
     models: [
       { id: 'gpt-image-1', label: 'gpt-image-1 · best quality' },
       { id: 'gpt-image-1-mini', label: 'gpt-image-1-mini · faster & cheaper' },
+      { id: 'dall-e-3', label: 'dall-e-3 · classic' },
     ],
     defaultModel: 'gpt-image-1',
   },

@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS = {
   size: '1:1',
   quality: 'medium',
   imageSize: '1K',
+  theme: 'sunset', // UI theme id — see renderer THEMES + styles.css [data-theme]
   outputDir: '',
   autoSave: false,
   checkUpdates: true,
@@ -188,7 +189,7 @@ class Store {
     if (p.provider && knownIds.includes(p.provider)) this.data.provider = p.provider;
     const s = this.data.settings;
     if (p.models && typeof p.models === 'object') s.models = { ...s.models, ...p.models };
-    for (const k of ['size', 'quality', 'imageSize', 'outputDir', 'autoSave', 'checkUpdates']) {
+    for (const k of ['size', 'quality', 'imageSize', 'theme', 'outputDir', 'autoSave', 'checkUpdates']) {
       if (k in p) s[k] = p[k];
     }
     await this.persist();
