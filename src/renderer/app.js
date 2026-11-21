@@ -113,10 +113,31 @@ const esc = (s) =>
 const fmtDate = (ts) =>
   new Date(ts).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+const TOAST_URL_RE = /https?:\/\/[^\s"'<>)\]]+/g;
+
+/** Toast with clickable links: any http(s) URL in the message opens externally. */
 function toast(msg, type = 'info', ms = 4200) {
   const t = document.createElement('div');
   t.className = 'toast ' + type;
-  t.textContent = msg;
+  const text = String(msg);
+  let last = 0;
+  let m;
+  TOAST_URL_RE.lastIndex = 0;
+  while ((m = TOAST_URL_RE.exec(text))) {
+    if (m.index > last) t.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const a = document.createElement('a');
+    a.href = '#';
+    a.textContent = m[0].replace(/[.,]$/, '');
+    const url = a.textContent;
+    a.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      api.openExternal(url).catch((e) => console.warn('openExternal failed:', e));
+    });
+    t.appendChild(a);
+    last = m.index + url.length;
+  }
+  if (last < text.length) t.appendChild(document.createTextNode(text.slice(last)));
+  if (last === 0) t.textContent = text;
   $('#toasts').appendChild(t);
   setTimeout(() => {
     t.style.opacity = '0';

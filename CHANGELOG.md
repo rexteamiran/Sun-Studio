@@ -4,6 +4,17 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.4] — 2026-11-21
+
+### Fixed
+- **"Out of funds — HTTP 402"** told the user nothing actionable. Provider error bodies are now
+  parsed properly (`error.message`, top-level `message`, or plain text up to 300 chars) and 402
+  responses read e.g. *"Your AI Pass account has no credit left — <provider's own message>. Top
+  up the balance, then try again → https://aipass.one"*. Every provider carries a `billingUrl`
+  (AI Pass, OpenAI billing, Google pricing; custom providers use their own base URL).
+- Toasts render http(s) links as **clickable** — clicking opens the URL in the system browser.
+- Same 402 treatment for the Google Gemini client.
+
 ## [0.0.3] — 2026-11-21
 
 ### Added

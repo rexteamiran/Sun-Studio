@@ -82,15 +82,36 @@ class OpenAICompatibleClient {
 
   async _check(res) {
     if (res.ok) return;
+    // Pull the provider's own error text out of the body (JSON or plain) so the
+    // user sees the real reason — e.g. an AI Pass balance message on HTTP 402.
     let msg = `HTTP ${res.status}`;
+    let hasProviderMsg = false;
     try {
-      const j = await res.json();
-      if (j && j.error && j.error.message) msg = j.error.message;
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text);
+        const m = (j && j.error && j.error.message) || (j && j.message) || '';
+        if (m && typeof m === 'string') {
+          msg = m;
+          hasProviderMsg = true;
+        }
+      } catch (e) {
+        if (text && text.length <= 300 && text.trim()) {
+          msg = text.trim();
+          hasProviderMsg = true;
+        }
+      }
     } catch (e) {
       /* keep default */
     }
     if (res.status === 401) msg = 'Invalid or revoked API key. Check the key in Settings.';
-    if (res.status === 402) msg = 'Out of funds — ' + msg;
+    if (res.status === 402) {
+      const detail = hasProviderMsg ? ' — ' + msg : '';
+      msg =
+        `Your ${this.meta.label} account has no credit left${detail}. ` +
+        'Top up the balance, then try again' +
+        (this.meta.billingUrl ? ' → ' + this.meta.billingUrl : '.');
+    }
     if (res.status === 403) msg = 'Access denied (key invalid or endpoint not allowed) — ' + msg;
     if (res.status === 429) msg = 'Rate limit / quota reached — ' + msg;
     throw new OpenAIError(msg, res.status);

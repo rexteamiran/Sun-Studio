@@ -98,6 +98,9 @@ class GoogleClient {
     if (res.status === 400 && /API key not valid/i.test(msg)) {
       msg = 'Invalid Google API key. Check the key in Settings.';
     }
+    if (res.status === 402) {
+      msg = 'Your Google account has no credit left. Check billing → https://ai.google.dev/pricing';
+    }
     if (res.status === 403) msg = 'Access denied — ' + msg;
     if (res.status === 429) msg = 'Rate limit / quota reached — ' + msg;
     throw new OpenAIError(msg, status);

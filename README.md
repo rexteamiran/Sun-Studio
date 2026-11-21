@@ -87,7 +87,7 @@ Pushing a tag like `v0.0.3` triggers the GitHub Actions workflow in `.github/wor
 
 ## Roadmap
 
-- v0.0.4 — more providers behind the same UI (Stability, fal.ai), batch export, prompt library
+- v0.0.5 — more providers behind the same UI (Stability, fal.ai), batch export, prompt library
 - v0.1 — drag & drop from Explorer, per-project galleries, auto-update channel with prereleases
 
 ## License

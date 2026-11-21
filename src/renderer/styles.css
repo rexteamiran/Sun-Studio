@@ -595,6 +595,8 @@ select option { background: #1d1710; color: var(--text); }
 .toast.ok { border-left-color: var(--ok); }
 .toast.warn { border-left-color: var(--warn); }
 .toast.error { border-left-color: var(--err); }
+.toast a { color: var(--gold); text-decoration: underline; cursor: pointer; user-select: text; }
+.toast a:hover { color: #ffd694; }
 
 /* ============ responsive ============ */
 @media (max-width: 1020px) {
