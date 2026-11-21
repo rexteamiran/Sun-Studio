@@ -2,6 +2,19 @@
 
 **AI image studio for Windows.** Generate, edit and restyle images with the best image models — through your own keys. Sun Studio ships with no AI inside; it connects directly to each provider's official API, so you always use your own account, your own limits and your own data.
 
+## Documentation
+
+| File | What's inside |
+|---|---|
+| [AGENTS.md](AGENTS.md) | Operating playbook for agent/dev sessions: rules, session checklist, smoke tests, pitfalls, security |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, IPC channel map, settings schema, updater state machine |
+| [docs/PROVIDERS.md](docs/PROVIDERS.md) | Provider layer, request shapes, mask semantics, how to add a provider |
+| [docs/RELEASE.md](docs/RELEASE.md) | Tag-driven release routine (versions, CI, updater assets, rollback) |
+| [docs/BUILD.md](docs/BUILD.md) | Dev setup, installer assets, packaging config, CI walkthrough |
+| [docs/SPEC.md](docs/SPEC.md) | Product spec: views, behaviors, provider-adaptive matrix, privacy |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Planned releases and decision log |
+| [CHANGELOG.md](CHANGELOG.md) | What shipped in every version |
+
 ## Providers (v0.0.2)
 
 | Provider | Type | Key | Image models |
