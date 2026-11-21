@@ -1,0 +1,23 @@
+{
+  "name": "sun-studio",
+  "productName": "Sun Studio",
+  "version": "0.0.1",
+  "description": "AI image studio for Windows — generate, edit and restyle images with your own OpenAI key.",
+  "main": "src/main/main.js",
+  "author": "Rex Team",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/rexteamiran/Sun-Studio#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rexteamiran/Sun-Studio.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64",
+    "dist:portable": "electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  }
+}

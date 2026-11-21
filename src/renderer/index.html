@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Sun Studio</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- ======================= SIDEBAR ======================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true">
+          <defs>
+            <radialGradient id="lg-brand" cx="35%" cy="30%" r="80%">
+              <stop offset="0%" stop-color="#ffe9b0"/>
+              <stop offset="55%" stop-color="#ffb648"/>
+              <stop offset="100%" stop-color="#ff7d1f"/>
+            </radialGradient>
+          </defs>
+          <g stroke="url(#lg-brand)" stroke-width="3.4" stroke-linecap="round">
+            <line x1="24" y1="2.5" x2="24" y2="9"/><line x1="24" y1="39" x2="24" y2="45.5"/>
+            <line x1="2.5" y1="24" x2="9" y2="24"/><line x1="39" y1="24" x2="45.5" y2="24"/>
+            <line x1="9.2" y1="9.2" x2="13.8" y2="13.8"/><line x1="34.2" y1="34.2" x2="38.8" y2="38.8"/>
+            <line x1="9.2" y1="38.8" x2="13.8" y2="34.2"/><line x1="34.2" y1="13.8" x2="38.8" y2="9.2"/>
+          </g>
+          <circle cx="24" cy="24" r="10.5" fill="url(#lg-brand)"/>
+        </svg>
+      </div>
+      <div class="brand-text"><strong>Sun Studio</strong><span>AI Image Studio</span></div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="create">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/></svg>
+        <span>Create</span>
+      </button>
+      <button class="nav-item" data-view="edit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span>Edit</span>
+      </button>
+      <button class="nav-item" data-view="restyle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span>Image to Image</span>
+      </button>
+      <button class="nav-item" data-view="gallery">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        <span>Gallery</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="key-badge warn" id="key-badge">No API key set</div>
+      <div class="version">Sun Studio v0.0.1</div>
+    </div>
+  </aside>
+
+  <!-- ======================= MAIN ======================= -->
+  <main class="main">
+    <div class="banner" id="key-banner" hidden>
+      <span>Connect your OpenAI API key to start generating.</span>
+      <button class="btn primary small" id="banner-key">Add key</button>
+    </div>
+
+    <!-- ============ CREATE ============ -->
+    <section class="view active" id="view-create">
+      <header class="view-head">
+        <h2>Create</h2>
+        <p>Describe what you want to see — Sun Studio sends your prompt straight to OpenAI image models.</p>
+      </header>
+      <div class="layout">
+        <div class="panel controls">
+          <label class="field">
+            <span class="field-label">Prompt</span>
+            <textarea id="create-prompt" rows="6" maxlength="4000" placeholder="A golden retriever astronaut floating above Earth, warm sunrise light, cinematic…"></textarea>
+            <span class="field-hint"><span id="create-count">0</span>/4000</span>
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Aspect ratio</span>
+              <select id="create-size">
+                <option value="1024x1024">Square · 1:1</option>
+                <option value="1536x1024">Landscape · 3:2</option>
+                <option value="1024x1536">Portrait · 2:3</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Quality</span>
+              <select id="create-quality">
+                <option value="low">Low · fastest</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High · slowest</option>
+              </select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Background</span>
+              <select id="create-bg">
+                <option value="auto" selected>Auto</option>
+                <option value="transparent">Transparent</option>
+                <option value="opaque">Opaque</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Images</span>
+              <select id="create-n">
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+          </div>
+          <button class="btn primary big" id="create-go">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/></svg>
+            Generate
+          </button>
+        </div>
+        <div class="results">
+          <div class="empty" id="create-empty">
+            <svg viewBox="0 0 48 48" width="72" height="72" aria-hidden="true">
+              <g stroke="#3a2d18" stroke-width="3.4" stroke-linecap="round">
+                <line x1="24" y1="4" x2="24" y2="10"/><line x1="24" y1="38" x2="24" y2="44"/>
+                <line x1="4" y1="24" x2="10" y2="24"/><line x1="38" y1="24" x2="44" y2="24"/>
+                <line x1="10" y1="10" x2="14" y2="14"/><line x1="34" y1="34" x2="38" y2="38"/>
+                <line x1="10" y1="38" x2="14" y2="34"/><line x1="34" y1="14" x2="38" y2="10"/>
+              </g>
+              <circle cx="24" cy="24" r="9.5" fill="#2a2011"/>
+            </svg>
+            <h3>Nothing here yet</h3>
+            <p>Write a prompt and press Generate. Results are saved to Gallery automatically.</p>
+          </div>
+          <div class="progress" id="create-progress" hidden>
+            <div class="sun-spin">
+              <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
+                <g stroke="#ffb648" stroke-width="3.6" stroke-linecap="round">
+                  <line x1="24" y1="4" x2="24" y2="10"/><line x1="24" y1="38" x2="24" y2="44"/>
+                  <line x1="4" y1="24" x2="10" y2="24"/><line x1="38" y1="24" x2="44" y2="24"/>
+                  <line x1="10" y1="10" x2="14" y2="14"/><line x1="34" y1="34" x2="38" y2="38"/>
+                  <line x1="10" y1="38" x2="14" y2="34"/><line x1="34" y1="14" x2="38" y2="10"/>
+                </g>
+                <circle cx="24" cy="24" r="9.5" fill="#ff8c1a"/>
+              </svg>
+            </div>
+            <p id="create-stage">Contacting OpenAI…</p>
+            <span class="timer" id="create-timer">0s</span>
+          </div>
+          <div class="result-grid" id="create-results"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ EDIT ============ -->
+    <section class="view" id="view-edit">
+      <header class="view-head">
+        <h2>Edit</h2>
+        <p>Paint over an area to tell the AI what to change, then describe the change. No mask = edit the whole image.</p>
+      </header>
+      <div class="empty drop" id="edit-start">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="#3a2d18" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        <h3>Start with an image</h3>
+        <p>PNG, JPG or WebP. Your file stays on your device until it is sent to OpenAI.</p>
+        <button class="btn primary" id="edit-pick">Choose image</button>
+      </div>
+      <div class="edit-grid" id="edit-grid" hidden>
+        <div class="panel canvas-panel">
+          <div class="canvas-wrap" id="canvas-wrap">
+            <img id="edit-img" alt="Editing image" />
+            <canvas id="edit-mask"></canvas>
+          </div>
+          <div class="toolbar">
+            <div class="tool-group">
+              <button class="btn ghost small active" id="tool-brush">Brush</button>
+              <button class="btn ghost small" id="tool-erase">Erase</button>
+            </div>
+            <label class="range"><span>Size</span><input type="range" id="brush-size" min="8" max="140" value="40" /></label>
+            <span class="spacer"></span>
+            <button class="btn ghost small" id="mask-clear">Clear mask</button>
+            <button class="btn ghost small danger" id="edit-remove">Remove image</button>
+          </div>
+        </div>
+        <div class="panel controls">
+          <label class="field">
+            <span class="field-label">What should change?</span>
+            <textarea id="edit-prompt" rows="5" maxlength="4000" placeholder="Replace the sky with a dramatic sunset…"></textarea>
+          </label>
+          <div class="presets">
+            <button class="chip" data-preset="bg">Remove background</button>
+            <button class="chip" data-preset="enhance">Restore &amp; enhance</button>
+            <button class="chip" data-preset="extend">Extend the scene</button>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Output size</span>
+              <select id="edit-size">
+                <option value="1024x1024">Square · 1:1</option>
+                <option value="1536x1024">Landscape · 3:2</option>
+                <option value="1024x1536">Portrait · 2:3</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Background</span>
+              <select id="edit-bg">
+                <option value="auto" selected>Auto</option>
+                <option value="transparent">Transparent</option>
+              </select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Quality</span>
+              <select id="edit-quality">
+                <option value="low">Low · fastest</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High · slowest</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Images</span>
+              <select id="edit-n">
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+          </div>
+          <button class="btn primary big" id="edit-go">Apply edit</button>
+        </div>
+      </div>
+      <div class="results full">
+        <div class="progress" id="edit-progress" hidden>
+          <div class="sun-spin">
+            <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
+              <g stroke="#ffb648" stroke-width="3.6" stroke-linecap="round">
+                <line x1="24" y1="4" x2="24" y2="10"/><line x1="24" y1="38" x2="24" y2="44"/>
+                <line x1="4" y1="24" x2="10" y2="24"/><line x1="38" y1="24" x2="44" y2="24"/>
+                <line x1="10" y1="10" x2="14" y2="14"/><line x1="34" y1="34" x2="38" y2="38"/>
+                <line x1="10" y1="38" x2="14" y2="34"/><line x1="34" y1="14" x2="38" y2="10"/>
+              </g>
+              <circle cx="24" cy="24" r="9.5" fill="#ff8c1a"/>
+            </svg>
+          </div>
+          <p id="edit-stage">Uploading your image…</p>
+          <span class="timer" id="edit-timer">0s</span>
+        </div>
+        <div class="result-grid" id="edit-results"></div>
+      </div>
+    </section>
+
+    <!-- ============ IMAGE TO IMAGE ============ -->
+    <section class="view" id="view-restyle">
+      <header class="view-head">
+        <h2>Image to Image</h2>
+        <p>Add one or more reference images and describe the new look — style transfer, outfits, scenes.</p>
+      </header>
+      <div class="layout">
+        <div class="panel controls">
+          <div class="field">
+            <span class="field-label">Reference images <em class="hint-inline">up to 3</em></span>
+            <div class="refs" id="refs">
+              <button class="ref-slot add" id="ref-add"><span class="plus">+</span><span>Add image</span></button>
+            </div>
+          </div>
+          <label class="field">
+            <span class="field-label">Describe the result</span>
+            <textarea id="restyle-prompt" rows="5" maxlength="4000" placeholder="Keep the pose and composition, change the outfit to elegant golden-hour fashion photography…"></textarea>
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Aspect ratio</span>
+              <select id="restyle-size">
+                <option value="1024x1024">Square · 1:1</option>
+                <option value="1536x1024">Landscape · 3:2</option>
+                <option value="1024x1536">Portrait · 2:3</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Quality</span>
+              <select id="restyle-quality">
+                <option value="low">Low · fastest</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High · slowest</option>
+              </select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Images</span>
+              <select id="restyle-n">
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+          </div>
+          <button class="btn primary big" id="restyle-go">Transform</button>
+        </div>
+        <div class="results">
+          <div class="empty" id="restyle-empty">
+            <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="#3a2d18" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <h3>Transform an image</h3>
+            <p>Reference images + a description = a whole new look.</p>
+          </div>
+          <div class="progress" id="restyle-progress" hidden>
+            <div class="sun-spin">
+              <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
+                <g stroke="#ffb648" stroke-width="3.6" stroke-linecap="round">
+                  <line x1="24" y1="4" x2="24" y2="10"/><line x1="24" y1="38" x2="24" y2="44"/>
+                  <line x1="4" y1="24" x2="10" y2="24"/><line x1="38" y1="24" x2="44" y2="24"/>
+                  <line x1="10" y1="10" x2="14" y2="14"/><line x1="34" y1="34" x2="38" y2="38"/>
+                  <line x1="10" y1="38" x2="14" y2="34"/><line x1="34" y1="14" x2="38" y2="10"/>
+                </g>
+                <circle cx="24" cy="24" r="9.5" fill="#ff8c1a"/>
+              </svg>
+            </div>
+            <p id="restyle-stage">Uploading reference images…</p>
+            <span class="timer" id="restyle-timer">0s</span>
+          </div>
+          <div class="result-grid" id="restyle-results"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ GALLERY ============ -->
+    <section class="view" id="view-gallery">
+      <header class="view-head">
+        <h2>Gallery</h2>
+        <p>Everything you generate is kept locally, with its prompt and settings.</p>
+      </header>
+      <div class="gallery-bar">
+        <span class="muted" id="gallery-count"></span>
+        <span class="spacer"></span>
+        <button class="btn ghost small" id="gallery-refresh">Refresh</button>
+        <button class="btn ghost small" id="gallery-open">Open folder</button>
+      </div>
+      <div class="empty" id="gallery-empty">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="#3a2d18" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        <h3>No images yet</h3>
+        <p>Create or edit something and it will show up here.</p>
+      </div>
+      <div class="gallery-grid" id="gallery-grid"></div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="view" id="view-settings">
+      <header class="view-head">
+        <h2>Settings</h2>
+        <p>Sun Studio has no AI inside — it uses your own OpenAI account through the official API.</p>
+      </header>
+      <div class="settings-grid">
+        <div class="panel">
+          <h3>OpenAI API key</h3>
+          <p class="muted">Stored with Windows DPAPI encryption on this device. It is only ever sent directly to api.openai.com.</p>
+          <div class="key-row">
+            <input type="password" id="key-input" placeholder="sk-…" autocomplete="off" spellcheck="false" />
+            <button class="btn ghost small" id="key-eye">Show</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" id="key-save">Save key</button>
+            <button class="btn ghost" id="key-test">Test connection</button>
+            <button class="btn ghost danger" id="key-remove">Remove</button>
+          </div>
+          <div class="status" id="key-status">No key saved yet.</div>
+        </div>
+        <div class="panel">
+          <h3>Defaults</h3>
+          <label class="field">
+            <span class="field-label">Model</span>
+            <select id="set-model">
+              <option value="gpt-image-1">gpt-image-1 · best quality</option>
+              <option value="gpt-image-1-mini">gpt-image-1-mini · faster &amp; cheaper</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Default quality</span>
+            <select id="set-quality">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Default aspect ratio</span>
+            <select id="set-size">
+              <option value="1024x1024">Square · 1:1</option>
+              <option value="1536x1024">Landscape · 3:2</option>
+              <option value="1024x1536">Portrait · 2:3</option>
+            </select>
+          </label>
+        </div>
+        <div class="panel">
+          <h3>Storage</h3>
+          <p class="muted">Optionally auto-save every new result to a folder you choose, in addition to the in-app Gallery.</p>
+          <div class="btn-row between">
+            <span class="muted ellip" id="outdir-label">No folder chosen</span>
+            <span class="btn-row">
+              <button class="btn ghost small" id="outdir-pick">Choose…</button>
+              <button class="btn ghost small" id="outdir-open">Open</button>
+            </span>
+          </div>
+          <label class="check"><input type="checkbox" id="autosave" /> Auto-save new results to this folder</label>
+        </div>
+        <div class="panel">
+          <h3>About</h3>
+          <div class="about-row">
+            <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
+              <defs>
+                <radialGradient id="lg-about" cx="35%" cy="30%" r="80%">
+                  <stop offset="0%" stop-color="#ffe9b0"/><stop offset="55%" stop-color="#ffb648"/><stop offset="100%" stop-color="#ff7d1f"/>
+                </radialGradient>
+              </defs>
+              <g stroke="url(#lg-about)" stroke-width="3.4" stroke-linecap="round">
+                <line x1="24" y1="2.5" x2="24" y2="9"/><line x1="24" y1="39" x2="24" y2="45.5"/>
+                <line x1="2.5" y1="24" x2="9" y2="24"/><line x1="39" y1="24" x2="45.5" y2="24"/>
+                <line x1="9.2" y1="9.2" x2="13.8" y2="13.8"/><line x1="34.2" y1="34.2" x2="38.8" y2="38.8"/>
+                <line x1="9.2" y1="38.8" x2="13.8" y2="34.2"/><line x1="34.2" y1="13.8" x2="38.8" y2="9.2"/>
+              </g>
+              <circle cx="24" cy="24" r="10.5" fill="url(#lg-about)"/>
+            </svg>
+            <div>
+              <strong>Sun Studio</strong>
+              <span class="muted block" id="about-info">v0.0.1</span>
+            </div>
+          </div>
+          <p class="muted">Bring-your-own-key studio · github.com/rexteamiran/Sun-Studio</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal">
+    <div class="modal-media"><img id="modal-img" alt="Preview" /></div>
+    <div class="modal-side">
+      <h3>Image</h3>
+      <p class="muted" id="modal-meta"></p>
+      <p class="modal-prompt" id="modal-prompt"></p>
+      <div class="btn-col">
+        <button class="btn primary" id="modal-save">Save as…</button>
+        <button class="btn ghost" id="modal-open">Open file</button>
+        <button class="btn ghost" id="modal-reuse">Reuse prompt</button>
+        <button class="btn ghost danger" id="modal-delete">Delete</button>
+        <button class="btn ghost" id="modal-close">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>
