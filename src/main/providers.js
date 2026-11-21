@@ -6,9 +6,20 @@
  *
  * Aspect ratios are canonical across the app ('1:1', '3:2', '2:3', '16:9', ...)
  * and mapped per provider at request time.
+ *
+ * Custom (bring-your-own-endpoint) providers live in the store and are merged
+ * into the registry by providerMeta(id, customProviders).
  */
 
 const OPENAI_SIZES = { '1:1': '1024x1024', '3:2': '1536x1024', '2:3': '1024x1536' };
+// wider set offered to custom endpoints (most OpenAI-compatible servers accept these)
+const CUSTOM_SIZES = {
+  '1:1': '1024x1024',
+  '3:2': '1536x1024',
+  '2:3': '1024x1536',
+  '16:9': '1792x1024',
+  '9:16': '1024x1792',
+};
 
 const PROVIDERS = {
   openai: {
@@ -39,6 +50,13 @@ const PROVIDERS = {
     qualities: ['low', 'medium', 'high'],
     background: true,
     dynamicModels: true,
+    recommended: true,
+    promo: {
+      badge: 'Recommended',
+      title: 'New to AI Pass? New accounts get $1 of free API credit.',
+      url: 'https://aipass.one',
+      urlLabel: 'Create a free account →',
+    },
     models: [
       { id: 'gpt-image-1', label: 'gpt-image-1' },
       { id: 'gpt-image-1-mini', label: 'gpt-image-1-mini' },
@@ -68,8 +86,30 @@ const PROVIDERS = {
   },
 };
 
-function providerMeta(id) {
-  return PROVIDERS[id] || null;
+/** Map a stored custom provider entry to registry metadata. */
+function customToMeta(c) {
+  const models = (c.models || []).map((id) => ({ id, label: id }));
+  return {
+    id: c.id,
+    label: c.label,
+    type: 'openai-compatible',
+    custom: true,
+    baseUrl: c.baseUrl,
+    keyHint: 'sk-… / API key',
+    keyDocs: c.baseUrl,
+    aspects: Object.keys(CUSTOM_SIZES),
+    qualities: ['low', 'medium', 'high'],
+    background: true,
+    dynamicModels: true,
+    models: models.length ? models : [{ id: 'gpt-image-1', label: 'gpt-image-1' }],
+    defaultModel: models.length ? models[0].id : 'gpt-image-1',
+  };
 }
 
-module.exports = { PROVIDERS, OPENAI_SIZES, providerMeta };
+function providerMeta(id, customProviders) {
+  if (PROVIDERS[id]) return PROVIDERS[id];
+  const c = (customProviders || []).find((x) => x && x.id === id);
+  return c ? customToMeta(c) : null;
+}
+
+module.exports = { PROVIDERS, OPENAI_SIZES, CUSTOM_SIZES, customToMeta, providerMeta };

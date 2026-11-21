@@ -1,7 +1,7 @@
 {
   "name": "sun-studio",
   "productName": "Sun Studio",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "AI image studio for Windows — generate, edit and restyle images with your own OpenAI, AI Pass or Google Gemini key.",
   "main": "src/main/main.js",
   "author": "Rex Team",

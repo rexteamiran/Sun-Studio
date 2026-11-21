@@ -33,6 +33,13 @@ const PROVIDERS_META = {
     resolutions: null,
     background: true,
     dynamicModels: true,
+    recommended: true,
+    promo: {
+      badge: 'Recommended',
+      title: 'New to AI Pass? New accounts get $1 of free API credit.',
+      url: 'https://aipass.one',
+      urlLabel: 'Create a free account →',
+    },
     models: [
       { id: 'gpt-image-1', label: 'gpt-image-1' },
       { id: 'gpt-image-1-mini', label: 'gpt-image-1-mini' },
@@ -62,7 +69,37 @@ const PROVIDERS_META = {
   },
 };
 
-const PROVIDER_IDS = Object.keys(PROVIDERS_META);
+const BUILTIN_PROVIDER_IDS = Object.keys(PROVIDERS_META);
+
+/** Built-in + user-created custom providers, in display order. */
+function providerIds() {
+  const custom = ((state.settings && state.settings.customProviders) || []).map((c) => c.id);
+  return [...BUILTIN_PROVIDER_IDS, ...custom];
+}
+
+/** Map stored custom-provider entries to the same metadata shape as built-ins. */
+function customMetas() {
+  return ((state.settings && state.settings.customProviders) || []).map((c) => ({
+    id: c.id,
+    label: c.label,
+    type: 'Custom OpenAI-compatible',
+    note: c.baseUrl,
+    keyHint: 'sk-… / API key',
+    aspects: ['1:1', '3:2', '2:3', '16:9', '9:16'],
+    qualities: ['low', 'medium', 'high'],
+    resolutions: null,
+    background: true,
+    dynamicModels: true,
+    custom: true,
+    models: (c.models || []).map((id) => ({ id, label: id })),
+    defaultModel: (c.models && c.models[0]) || 'gpt-image-1',
+  }));
+}
+
+function metaFor(id) {
+  if (PROVIDERS_META[id]) return PROVIDERS_META[id];
+  return customMetas().find((c) => c.id === id) || PROVIDERS_META.openai;
+}
 const ASPECT_LABELS = { '1:1': 'Square · 1:1', '3:2': 'Landscape · 3:2', '2:3': 'Portrait · 2:3', '16:9': 'Wide · 16:9', '9:16': 'Tall · 9:16', '4:3': 'Classic · 4:3' };
 const QUALITY_LABELS = { low: 'Low · fastest', medium: 'Medium', high: 'High · slowest' };
 const RESOLUTION_LABELS = { '1K': '1K · default', '2K': '2K · sharp', '4K': '4K · sharpest' };
@@ -112,7 +149,7 @@ const state = {
   dynamicModels: {},
 };
 
-const meta = () => PROVIDERS_META[state.provider] || PROVIDERS_META.openai;
+const meta = () => metaFor(state.provider);
 const modelFor = () => {
   const s = (state.settings && state.settings.settings) || {};
   return (s.models && s.models[state.provider]) || meta().defaultModel;
@@ -135,8 +172,8 @@ if (api.onMenuNav) api.onMenuNav(nav);
 function renderProviderPill() {
   const pill = $('#provider-pill');
   pill.innerHTML = '';
-  for (const id of PROVIDER_IDS) {
-    const m = PROVIDERS_META[id];
+  for (const id of providerIds()) {
+    const m = metaFor(id);
     const info = (state.settings && state.settings.providers && state.settings.providers[id]) || { hasKey: false };
     const b = document.createElement('button');
     b.className = 'pp-btn' + (id === state.provider ? ' active' : '');
@@ -157,7 +194,7 @@ async function switchProvider(id) {
     populateAllViewOptions();
     paintKeyUi();
     fillSettings();
-    toast('Provider switched to ' + PROVIDERS_META[id].label + '.', 'ok', 2600);
+    toast('Provider switched to ' + metaFor(id).label + '.', 'ok', 2600);
   } catch (e) {
     toast(e.message, 'error');
   }
@@ -207,12 +244,12 @@ function paintKeyUi() {
   const badge = $('#key-badge');
   if (info.hasKey) {
     badge.className = 'key-badge ok';
-    badge.textContent = PROVIDERS_META[state.provider].label + ' key ' + (info.hint || '') + (info.encrypted ? ' · encrypted' : '');
+    badge.textContent = metaFor(state.provider).label + ' key ' + (info.hint || '') + (info.encrypted ? ' · encrypted' : '');
     $('#key-banner').hidden = true;
   } else {
     badge.className = 'key-badge warn';
-    badge.textContent = 'No ' + PROVIDERS_META[state.provider].label + ' key set';
-    $('#key-banner-text').textContent = 'Connect your ' + PROVIDERS_META[state.provider].label + ' API key to start generating.';
+    badge.textContent = 'No ' + metaFor(state.provider).label + ' key set';
+    $('#key-banner-text').textContent = 'Connect your ' + metaFor(state.provider).label + ' API key to start generating.';
     $('#key-banner').hidden = false;
   }
 }
@@ -221,18 +258,28 @@ async function refreshSettings() {
   try {
     state.settings = await api.getSettings();
   } catch (e) {
-    state.settings = { provider: 'openai', settings: {}, providers: {} };
+    state.settings = { provider: 'aipass', settings: {}, providers: {}, customProviders: [] };
   }
-  state.provider = (state.settings && state.settings.provider) || 'openai';
+  state.provider = (state.settings && state.settings.provider) || 'aipass';
   paintKeyUi();
+}
+
+/** Re-render every provider-dependent surface after a settings change. */
+async function afterSettingsChange() {
+  renderProviderPill();
+  renderProviderCards();
+  renderCustomList();
+  populateAllViewOptions();
+  paintKeyUi();
+  fillSettings();
 }
 
 // ---------- provider cards ----------
 function renderProviderCards() {
   const wrap = $('#provider-cards');
   wrap.innerHTML = '';
-  for (const id of PROVIDER_IDS) {
-    const m = PROVIDERS_META[id];
+  for (const id of providerIds()) {
+    const m = metaFor(id);
     const info = (state.settings && state.settings.providers && state.settings.providers[id]) || { hasKey: false, hint: '', encrypted: false };
     const card = document.createElement('div');
     card.className = 'prov-card' + (id === state.provider ? ' active' : '');
@@ -253,6 +300,40 @@ function renderProviderCards() {
       '<button class="btn primary small" data-act="use"' + (id === state.provider ? ' disabled' : '') + '>Use provider</button></div>' +
       '<div class="status" data-role="status"></div>';
 
+    // AI Pass recommendation: $1 free credit for new accounts
+    if (m.promo) {
+      const promo = document.createElement('div');
+      promo.className = 'prov-promo';
+      promo.innerHTML = '<span class="pp-title">' + esc(m.promo.title) + '</span>';
+      const link = document.createElement('button');
+      link.className = 'btn ghost small';
+      link.textContent = m.promo.urlLabel;
+      link.addEventListener('click', () => api.openExternal(m.promo.url).catch((e) => toast(e.message, 'error')));
+      promo.appendChild(link);
+      card.appendChild(promo);
+    }
+
+    if (m.custom) {
+      const acts = document.createElement('div');
+      acts.className = 'prov-actions';
+      acts.innerHTML =
+        '<button class="btn ghost small" data-act="edit">Edit</button>' +
+        '<button class="btn ghost small danger" data-act="del">Delete</button>';
+      acts.querySelector('[data-act="edit"]').addEventListener('click', () => openCustomForm(id));
+      acts.querySelector('[data-act="del"]').addEventListener('click', async () => {
+        if (!confirm('Remove provider "' + m.label + '"? Its saved key will be deleted too.')) return;
+        try {
+          state.settings = await api.customDelete(id);
+          delete state.dynamicModels[id];
+          await afterSettingsChange();
+          toast('Custom provider removed.', 'warn', 2600);
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      });
+      card.appendChild(acts);
+    }
+
     const input = card.querySelector('input');
     const statusEl = card.querySelector('[data-role="status"]');
     const setStatus = (text, cls) => {
@@ -266,10 +347,7 @@ function renderProviderCards() {
       try {
         state.settings = await api.setApiKey(id, key);
         input.value = '';
-        renderProviderCards();
-        renderProviderPill();
-        paintKeyUi();
-        fillSettings();
+        await afterSettingsChange();
         toast(m.label + ' key saved.', 'ok');
       } catch (e) {
         setStatus(e.message, 'err');
@@ -296,9 +374,69 @@ function renderProviderCards() {
   }
 }
 
+// ---------- custom providers (bring your own endpoint) ----------
+let editingCustomId = null;
+
+function openCustomForm(id) {
+  editingCustomId = id || null;
+  const c = id ? ((state.settings && state.settings.customProviders) || []).find((x) => x.id === id) : null;
+  $('#custom-title').textContent = c ? 'Edit custom provider — ' + c.label : 'New custom provider';
+  $('#custom-label').value = c ? c.label : '';
+  $('#custom-url').value = c ? c.baseUrl : '';
+  $('#custom-key').value = '';
+  $('#custom-key').placeholder = c ? 'Leave empty to keep the saved key' : 'sk-…';
+  $('#custom-models').value = c ? (c.models || []).join(', ') : '';
+  $('#custom-form').hidden = false;
+  $('#custom-label').focus();
+}
+
+function closeCustomForm() {
+  $('#custom-form').hidden = true;
+  editingCustomId = null;
+}
+
+async function submitCustomForm() {
+  const label = $('#custom-label').value.trim();
+  const baseUrl = $('#custom-url').value.trim();
+  const key = $('#custom-key').value.trim();
+  const models = $('#custom-models')
+    .value.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!label) return toast('Give the provider a name.', 'warn');
+  if (!/^https?:\/\//i.test(baseUrl)) return toast('Base URL must start with http:// or https://', 'warn');
+  try {
+    state.settings = await api.customSave({ id: editingCustomId, label, baseUrl, key, models });
+    closeCustomForm();
+    await afterSettingsChange();
+    toast('Custom provider saved.', 'ok');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function renderCustomList() {
+  const list = $('#custom-providers-list');
+  if (!list) return;
+  const customs = customMetas();
+  list.innerHTML = '';
+  const p = document.createElement('p');
+  p.className = 'muted small-note';
+  p.textContent = customs.length
+    ? customs.length + ' custom provider' + (customs.length > 1 ? 's' : '') + ' configured — manage ' + (customs.length > 1 ? 'them' : 'it') + ' in the Providers grid above.'
+    : 'No custom providers yet — add any OpenAI-compatible endpoint above.';
+  list.appendChild(p);
+}
+
+function bindCustomForm() {
+  $('#custom-add').addEventListener('click', () => openCustomForm(null));
+  $('#custom-cancel').addEventListener('click', closeCustomForm);
+  $('#custom-save').addEventListener('click', submitCustomForm);
+}
+
 // ---------- settings panel ----------
 function modelChoices(id) {
-  const m = PROVIDERS_META[id];
+  const m = metaFor(id);
   let ids = m.models.map((x) => x.id);
   if (m.dynamicModels && state.dynamicModels[id] && state.dynamicModels[id].length) {
     const imgIds = state.dynamicModels[id].filter((x) => IMAGE_MODEL_RE.test(x));
@@ -312,11 +450,13 @@ function fillSettings() {
   if (!s) return;
   const d = s.settings || {};
 
+  $('#model-provider-label').textContent = metaFor(state.provider).label;
+
   // model select for the active provider
   const sel = $('#set-model');
   sel.innerHTML = '';
   for (const id of modelChoices(state.provider)) {
-    const m = PROVIDERS_META[state.provider].models.find((x) => x.id === id);
+    const m = metaFor(state.provider).models.find((x) => x.id === id);
     const o = document.createElement('option');
     o.value = id;
     o.textContent = m ? m.label : id;
@@ -399,6 +539,43 @@ function bindSettings() {
     api.updateDownload().catch((e) => setStatusUpdate(e.message, 'err'));
   });
   $('#update-install').addEventListener('click', () => api.updateInstall().catch(() => {}));
+
+  // model management: fetch the live list from the provider, or type one manually
+  $('#model-fetch').addEventListener('click', async () => {
+    const btn = $('#model-fetch');
+    const id = state.provider;
+    btn.disabled = true;
+    try {
+      const ids = await api.providerModels(id);
+      state.dynamicModels[id] = ids || [];
+      fillSettings();
+      const img = state.dynamicModels[id].filter((x) => IMAGE_MODEL_RE.test(x));
+      toast(
+        (img.length || state.dynamicModels[id].length) + ' models fetched from ' + metaFor(id).label + '.',
+        'ok',
+        3200
+      );
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('#model-add-go').addEventListener('click', async () => {
+    const v = $('#model-add').value.trim();
+    if (!v) return toast('Type a model id first.', 'warn');
+    try {
+      const models = {};
+      models[state.provider] = v;
+      state.settings = await api.updateSettings({ models });
+      fillSettings();
+      $('#model-add').value = '';
+      toast('Default model set to "' + v + '".', 'ok', 2800);
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
 }
 
 function setStatusUpdate(text, cls) {
@@ -1092,15 +1269,16 @@ function createMockApi() {
     });
 
   return {
-    getInfo: async () => ({ version: '0.0.2', electron: 'mock', platform: 'browser', encryption: 'none', packaged: false }),
+    getInfo: async () => ({ version: '0.0.3', electron: 'mock', platform: 'browser', encryption: 'none', packaged: false }),
     getSettings: async () => ({
-      provider: 'openai',
+      provider: 'aipass',
       settings: { models: { openai: 'gpt-image-1', aipass: 'gpt-image-1', google: 'gemini-nano-banana-2.1' }, size: '1:1', quality: 'medium', imageSize: '1K', outputDir: '', autoSave: false, checkUpdates: true },
       providers: {
         openai: { hasKey: false, encrypted: false, hint: '' },
         aipass: { hasKey: false, encrypted: false, hint: '' },
         google: { hasKey: false, encrypted: false, hint: '' },
       },
+      customProviders: [],
     }),
     setApiKey: async (id, k) => state.settings,
     updateSettings: async (p) => state.settings,
@@ -1108,6 +1286,20 @@ function createMockApi() {
       throw new Error('Run the desktop app to test a real key.');
     },
     providerModels: async () => ['gpt-image-1', 'dall-e-3', 'flux-pro'],
+    customSave: async () => state.settings,
+    customDelete: async () => state.settings,
+    openExternal: (url) => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.click();
+    },
+    winMin: async () => {},
+    winMax: async () => {},
+    winClose: async () => {},
+    winState: async () => ({ maximized: false }),
+    onWinState: null,
     generate: ({ prompt, aspect }) => fake('generate', prompt, aspect),
     editImage: ({ prompt, aspect }) => fake('edit', prompt, aspect),
     pickImage: () =>
@@ -1151,6 +1343,33 @@ function createMockApi() {
   };
 }
 
+// ---------- custom window chrome ----------
+function bindWinControls() {
+  const maxBtn = $('#win-max');
+  $('#win-min').addEventListener('click', () => api.winMin().catch(() => {}));
+  maxBtn.addEventListener('click', () => api.winMax().catch(() => {}));
+  $('#win-close').addEventListener('click', () => api.winClose().catch(() => {}));
+  if (api.onWinState) api.onWinState((s) => maxBtn.classList.toggle('maximized', !!s.maximized));
+  if (api.winState) api.winState().then((s) => maxBtn.classList.toggle('maximized', !!s.maximized)).catch(() => {});
+  // double-click on empty titlebar areas toggles maximize
+  $('.titlebar').addEventListener('dblclick', (e) => {
+    if (e.target.closest('button, input, .provider-pill, .update-chip')) return;
+    api.winMax().catch(() => {});
+  });
+  // shortcuts that used to live in the native menu
+  document.addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || e.altKey || e.shiftKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'g') {
+      e.preventDefault();
+      nav('gallery');
+    } else if (k === ',') {
+      e.preventDefault();
+      nav('settings');
+    }
+  });
+}
+
 // ---------- init ----------
 (async function init() {
   bindCreate();
@@ -1160,6 +1379,8 @@ function createMockApi() {
   bindGalleryBar();
   bindModal();
   bindUpdateChip();
+  bindCustomForm();
+  bindWinControls();
   try {
     state.info = await api.getInfo();
     $('#ver-num').textContent = 'v' + state.info.version;

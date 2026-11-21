@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('sun', {
   getSettings: () => unwrap(ipcRenderer.invoke('settings:get')),
   setApiKey: (provider, key) => unwrap(ipcRenderer.invoke('settings:setApiKey', { provider, key })),
   updateSettings: (partial) => unwrap(ipcRenderer.invoke('settings:update', partial)),
+  customSave: (p) => unwrap(ipcRenderer.invoke('custom:save', p)),
+  customDelete: (id) => unwrap(ipcRenderer.invoke('custom:delete', id)),
   testKey: (provider) => unwrap(ipcRenderer.invoke('key:test', provider)),
   providerModels: (provider) => unwrap(ipcRenderer.invoke('provider:models', provider)),
 
@@ -29,6 +31,17 @@ contextBridge.exposeInMainWorld('sun', {
   openPath: (p) => unwrap(ipcRenderer.invoke('image:open', p)),
   pickOutputDir: () => unwrap(ipcRenderer.invoke('dir:pickOutput')),
   exportPng: (dataUrl, name) => unwrap(ipcRenderer.invoke('export:png', { dataUrl, suggestedName: name })),
+  openExternal: (url) => unwrap(ipcRenderer.invoke('shell:openExternal', url)),
+
+  winMin: () => unwrap(ipcRenderer.invoke('win:min')),
+  winMax: () => unwrap(ipcRenderer.invoke('win:max')),
+  winClose: () => unwrap(ipcRenderer.invoke('win:close')),
+  winState: () => unwrap(ipcRenderer.invoke('win:state')),
+  onWinState: (cb) => {
+    const l = (_e, d) => cb(d);
+    ipcRenderer.on('win:state', l);
+    return () => ipcRenderer.removeListener('win:state', l);
+  },
 
   updateCheck: () => unwrap(ipcRenderer.invoke('update:check')),
   updateDownload: () => unwrap(ipcRenderer.invoke('update:download')),
@@ -39,11 +52,6 @@ contextBridge.exposeInMainWorld('sun', {
     const l = (_e, d) => cb(d && d.text);
     ipcRenderer.on('op:stage', l);
     return () => ipcRenderer.removeListener('op:stage', l);
-  },
-  onMenuNav: (cb) => {
-    const l = (_e, v) => cb(v);
-    ipcRenderer.on('menu:navigate', l);
-    return () => ipcRenderer.removeListener('menu:navigate', l);
   },
   onUpdateEvent: (cb) => {
     const l = (_e, d) => cb(d);

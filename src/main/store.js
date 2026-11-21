@@ -5,10 +5,10 @@ const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 
-const PROVIDER_IDS = ['openai', 'aipass', 'google'];
+const BUILTIN_IDS = ['openai', 'aipass', 'google'];
 
 const DEFAULT_SETTINGS = {
-  provider: 'openai',
+  provider: 'aipass', // AI Pass is the recommended default (new accounts get $1 free credit)
   models: {
     openai: 'gpt-image-1',
     aipass: 'gpt-image-1',
@@ -28,6 +28,7 @@ class Store {
     this.data = {
       provider: DEFAULT_SETTINGS.provider,
       apiKeys: {}, // id -> { enc: base64|null, plain: string|null }
+      customProviders: [], // [{ id, label, baseUrl, models: [id], defaultModel }]
       settings: { ...DEFAULT_SETTINGS },
     };
     this._encryptionOk = null;
@@ -49,6 +50,18 @@ class Store {
     return this._encryptionOk === true;
   }
 
+  _validCustom(c) {
+    return (
+      c &&
+      typeof c === 'object' &&
+      typeof c.id === 'string' &&
+      typeof c.label === 'string' &&
+      typeof c.baseUrl === 'string' &&
+      /^https?:\/\//i.test(c.baseUrl) &&
+      Array.isArray(c.models)
+    );
+  }
+
   async load() {
     if (this.loaded) return;
     try {
@@ -64,8 +77,14 @@ class Store {
         };
       }
 
+      // v2 -> v3: custom providers list
+      if (Array.isArray(j.customProviders)) {
+        this.data.customProviders = j.customProviders.filter((c) => this._validCustom(c));
+      }
+
       const s = j.settings || {};
-      this.data.provider = PROVIDER_IDS.includes(s.provider) ? s.provider : this.data.provider;
+      const knownIds = [...BUILTIN_IDS, ...this.data.customProviders.map((c) => c.id)];
+      if (s.provider && knownIds.includes(s.provider)) this.data.provider = s.provider;
       this.data.settings = { ...DEFAULT_SETTINGS, ...s, models: { ...DEFAULT_SETTINGS.models, ...(s.models || {}) } };
     } catch (e) {
       // first run — keep defaults
@@ -75,9 +94,10 @@ class Store {
 
   async persist() {
     const j = {
-      version: 2,
+      version: 3,
       provider: this.data.provider,
       apiKeys: this.data.apiKeys,
+      customProviders: this.data.customProviders,
       settings: this.data.settings,
     };
     await fsp.mkdir(path.dirname(this.file), { recursive: true });
@@ -111,10 +131,61 @@ class Store {
     return k.plain || null;
   }
 
+  // ---------- custom (BYO endpoint) providers ----------
+  /**
+   * Create or update a custom OpenAI-compatible provider.
+   * p = { id?, label, baseUrl, key?, models: [string] }
+   */
+  async saveCustomProvider(p) {
+    await this.load();
+    const label = String(p.label || '').trim();
+    const baseUrl = String(p.baseUrl || '').trim().replace(/\/+$/, '');
+    if (!label) throw new Error('Provider name is required.');
+    if (!/^https?:\/\/.+/i.test(baseUrl)) throw new Error('Base URL must start with http:// or https://');
+    const models = (Array.isArray(p.models) ? p.models : [])
+      .map((m) => String(m || '').trim())
+      .filter(Boolean)
+      .slice(0, 200);
+
+    let id = p.id ? String(p.id) : null;
+    let entry = id ? this.data.customProviders.find((c) => c.id === id) : null;
+    if (id && !entry) throw new Error('Custom provider not found.');
+    if (!entry) {
+      id = 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      entry = { id, label, baseUrl, models };
+      this.data.customProviders.push(entry);
+    } else {
+      entry.label = label;
+      entry.baseUrl = baseUrl;
+      entry.models = models;
+    }
+    if (!this.data.settings.models[id]) {
+      this.data.settings.models[id] = models[0] || 'gpt-image-1';
+    }
+    if (p.key && String(p.key).trim()) {
+      await this.setApiKey(id, String(p.key).trim());
+    }
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async deleteCustomProvider(id) {
+    await this.load();
+    const before = this.data.customProviders.length;
+    this.data.customProviders = this.data.customProviders.filter((c) => c.id !== id);
+    if (this.data.customProviders.length === before) throw new Error('Custom provider not found.');
+    delete this.data.apiKeys[id];
+    delete this.data.settings.models[id];
+    if (this.data.provider === id) this.data.provider = 'aipass';
+    await this.persist();
+    return this.snapshot();
+  }
+
   async update(partial) {
     await this.load();
     const p = partial || {};
-    if (p.provider && PROVIDER_IDS.includes(p.provider)) this.data.provider = p.provider;
+    const knownIds = [...BUILTIN_IDS, ...this.data.customProviders.map((c) => c.id)];
+    if (p.provider && knownIds.includes(p.provider)) this.data.provider = p.provider;
     const s = this.data.settings;
     if (p.models && typeof p.models === 'object') s.models = { ...s.models, ...p.models };
     for (const k of ['size', 'quality', 'imageSize', 'outputDir', 'autoSave', 'checkUpdates']) {
@@ -133,13 +204,16 @@ class Store {
 
   snapshot() {
     const providers = {};
-    for (const id of PROVIDER_IDS) providers[id] = this._providerInfo(id);
+    for (const id of [...BUILTIN_IDS, ...this.data.customProviders.map((c) => c.id)]) {
+      providers[id] = this._providerInfo(id);
+    }
     return {
       provider: this.data.provider,
       settings: { ...this.data.settings },
       providers,
+      customProviders: this.data.customProviders.map((c) => ({ ...c })),
     };
   }
 }
 
-module.exports = { Store, DEFAULT_SETTINGS, PROVIDER_IDS };
+module.exports = { Store, DEFAULT_SETTINGS, BUILTIN_IDS };

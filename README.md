@@ -15,15 +15,18 @@
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Planned releases and decision log |
 | [CHANGELOG.md](CHANGELOG.md) | What shipped in every version |
 
-## Providers (v0.0.2)
+## Providers (v0.0.3)
 
 | Provider | Type | Key | Image models |
 |---|---|---|---|
+| **AI Pass** ⭐ recommended | OpenAI-compatible wallet (`https://aipass.one/v1`) | `sk-aikey-…` from the Developer Dashboard | gpt-image-1, dall-e-3 and more (model list is fetched live from the proxy) |
 | **OpenAI** | Direct API | `sk-…` from platform.openai.com | gpt-image-1, gpt-image-1-mini |
-| **AI Pass** | OpenAI-compatible wallet (`https://aipass.one/v1`) | `sk-aikey-…` from the Developer Dashboard | gpt-image-1, dall-e-3 and more (model list is fetched live from the proxy) |
 | **Google Gemini** | Gemini API | `AIza…` from aistudio.google.com/apikey | Nano Banana 2.1, Flash Lite Image, Flash Image, Nano Banana Pro (1K/2K/4K) |
+| **Custom** | Any OpenAI-compatible endpoint | your key | whatever the endpoint serves — type model ids manually or fetch the live list |
 
-Switch providers any time from the pill at the top of the window — each provider keeps its own encrypted key and its own default model. Aspect ratio, quality/resolution and background options adapt automatically to what the active provider supports.
+> 💡 **AI Pass is the recommended way to start** — [new accounts get **$1 of free API credit**](https://aipass.one), enough to try every model in the app.
+
+Switch providers any time from the pill in the title bar — each provider keeps its own encrypted key and its own default model. Aspect ratio, quality/resolution and background options adapt automatically to what the active provider supports.
 
 ## Features
 
@@ -32,7 +35,10 @@ Switch providers any time from the pill at the top of the window — each provid
 | **Create** | Text-to-image with aspect ratio, quality/resolution, image count and transparent-background support (where available). |
 | **Edit** | Paint a mask over any area and describe the change — inpainting, object removal, background removal and quick presets. For Google (no mask input) the painted area is sent as a magenta cover and replaced per your prompt. |
 | **Image to Image** | Feed up to 3 reference images and describe the new look — style transfer, outfits, scenes. |
+| **Custom providers** | Add any OpenAI-compatible endpoint (proxy, self-hosted server, local runner) with just a name, base URL and key. Edit or delete them any time in Settings. |
+| **Model management** | For every provider: pick from the list, fetch the live model list from the API, or type any model id manually. |
 | **Gallery** | Every result is saved locally with its prompt, provider, model and settings. Save as, open, delete or reuse a prompt in one click. |
+| **Custom window chrome** | Frameless window with a custom title bar (drag to move, provider pill, window controls) — no native Windows menu. `Ctrl+G` gallery, `Ctrl+,` settings, `F12` dev tools. |
 | **Updates** | Built-in updater (electron-updater): checks GitHub releases at startup, downloads in-app with a progress bar and installs via the standard wizard. Check manually from **Settings → Updates**. |
 | **Settings** | Bring your own keys. Each key is encrypted with Windows DPAPI and never leaves your device except to call the selected provider directly. |
 
@@ -44,9 +50,11 @@ Grab `SunStudio-Setup-x.y.z.exe` from the [Releases](https://github.com/rexteami
 
 ### 2. Add a provider key
 
-1. Pick a provider in the top bar (OpenAI, AI Pass or Google Gemini)
+**Recommended: AI Pass** — one wallet key that reaches gpt-image-1, dall-e-3 and more. [Create a free account at aipass.one](https://aipass.one) and get **$1 of free API credit** on new accounts.
+
+1. Pick a provider in the title-bar pill (AI Pass is active by default)
 2. Open **Settings**, paste the key under **Providers**, press **Save**
-3. Press **Test** — you should see *Connection successful*
+3. Press **Test** — you should see *Connection successful* (this also fetches the live model list for AI Pass)
 4. Press **Use provider** (or just keep it active from step 1)
 
 > Image generation is billed by the provider to **your** account — check current pricing on the provider's pricing page.
@@ -79,7 +87,7 @@ Pushing a tag like `v0.0.3` triggers the GitHub Actions workflow in `.github/wor
 
 ## Roadmap
 
-- v0.0.3 — more providers behind the same UI (Stability, fal.ai), batch export, prompt library
+- v0.0.4 — more providers behind the same UI (Stability, fal.ai), batch export, prompt library
 - v0.1 — drag & drop from Explorer, per-project galleries, auto-update channel with prereleases
 
 ## License

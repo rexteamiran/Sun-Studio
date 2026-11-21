@@ -58,29 +58,40 @@ prefixed prompt; no mask file is sent.
 | `settings:setApiKey` | R→M | `{provider, key}` → encrypt + persist |
 | `settings:update` | R→M | partial `{provider?, models?, size?, quality?, imageSize?, outputDir?, autoSave?, checkUpdates?}` |
 | `key:test` | R→M | test a provider key (GET models) |
-| `provider:models` | R→M | static list or live `GET /v1/models` (AI Pass) |
+| `provider:models` | R→M | static list or live `GET /v1/models` (AI Pass + custom providers) |
+| `custom:save` / `custom:delete` | R→M | create / edit / remove a custom OpenAI-compatible provider |
 | `gen:image` | R→M | text→image |
 | `image:edit` | R→M | edit / restyle (multipart or inline base64) |
 | `file:pickImage` / `file:readImage` | R→M | pick + normalize to PNG (≤50 MB) |
 | `file:writeTempPng` | R→M | persist a renderer-produced PNG (magenta cover) to tmp |
 | `gallery:list/delete/saveAs/openFolder` | R→M | gallery CRUD |
 | `image:open` / `dir:pickOutput` / `export:png` | R→M | shell + save dialogs |
+| `shell:openExternal` | R→M | open http(s) links (AI Pass promo, GitHub) |
+| `win:min/max/close` + `win:state` | R→M/M→R | custom title-bar window controls (frameless window) |
 | `update:state/check/download/install` | R→M | updater control |
 | `op:stage` | M→R | progress stage text during jobs |
-| `menu:navigate` | M→R | native menu → view switch |
 | `update:event` | M→R | updater state machine events |
 
 Errors cross the bridge as `{ok:false, error}` and become toasts in the renderer.
 
-## Settings store (v2)
+## Window chrome
+
+`frame: false` + `Menu.setApplicationMenu(null)` — there is **no native title bar and no native
+menu**. The renderer `.titlebar` is the drag region (`-webkit-app-region: drag`); the provider
+pill, update chip and `#win-min/#win-max/#win-close` buttons are `no-drag` and call the `win:*`
+IPC channels. DevTools/reload survive as `before-input-event` shortcuts (F12, Ctrl+R); `Ctrl+G`
+/ `Ctrl+,` navigation lives in the renderer.
+
+## Settings store (v3)
 
 `%APPDATA%/Sun Studio/settings.json`
 
 ```json
 {
-  "version": 2,
-  "provider": "openai | aipass | google",
+  "version": 3,
+  "provider": "aipass | openai | google | custom-<id>",
   "apiKeys": { "<id>": { "enc": "<safeStorage base64 | null>", "plain": "<string | null>" } },
+  "customProviders": [ { "id": "custom-…", "label": "My proxy", "baseUrl": "https://…/v1", "models": ["gpt-image-1"], "defaultModel": "gpt-image-1" } ],
   "settings": {
     "models":  { "openai": "gpt-image-1", "aipass": "gpt-image-1", "google": "gemini-nano-banana-2.1" },
     "size": "1:1", "quality": "medium", "imageSize": "1K",
@@ -89,7 +100,8 @@ Errors cross the bridge as `{ok:false, error}` and become toasts in the renderer
 }
 ```
 
-`store.js` migrates v1 (`apiKeyEnc`/`apiKeyPlain`) into `apiKeys.openai` on load.
+`store.js` migrates v1 (`apiKeyEnc`/`apiKeyPlain`) into `apiKeys.openai` and keeps v2 files
+as-is (customProviders defaults to `[]`). The default provider for fresh installs is **aipass**.
 
 ## Updater state machine (`updater.js` → `update:event` → `app.js applyUpdateState`)
 

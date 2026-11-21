@@ -33,15 +33,33 @@ How the provider layer works and how to add a provider. The registry lives in
 ```
 
 Canonical aspects are mapped per provider at request time:
-- OpenAI-compatible: `1:1→1024x1024`, `3:2→1536x1024`, `2:3→1024x1536` (`openAiSizeFor`);
-  dall-e-3 overrides to `1792x1024`/`1024x1792` (`dallE3SizeFor`).
+- OpenAI-compatible: `1:1→1024x1024`, `3:2→1536x1024`, `2:3→1024x1536`, `16:9→1792x1024`,
+  `9:16→1024x1792` (`openAiSizeFor`); dall-e-3 overrides to `1792x1024`/`1024x1792`
+  (`dallE3SizeFor`). The wider 16:9/9:16 set is only offered to custom providers (built-in
+  OpenAI/AI Pass metas list just 1:1, 3:2, 2:3, which gpt-image-1 supports).
 - Google: the aspect string is passed through as `aspect_ratio`.
+
+## Custom providers (v0.0.3)
+
+Users can add any OpenAI-compatible endpoint in Settings → *Custom providers*:
+name + base URL + optional key + optional comma-separated model ids. Entries live in
+`settings.json` under `customProviders` (schema v3, see `store.js saveCustomProvider/
+deleteCustomProvider`) and are merged into the registry at runtime by
+`providerMeta(id, store.data.customProviders)` → `customToMeta()`; the renderer mirrors them via
+`customMetas()`. They behave exactly like built-in OpenAI-compatible providers: live model list
+via `GET {baseUrl}/models`, DPAPI-encrypted key, `Test` button, usable as the active provider.
+**Always resolve metadata through the custom-aware helpers** (`metaFor()` in `main.js`,
+`metaFor()`/`providerIds()` in `app.js`) — never through the static registry alone.
 
 ## Client contract
 
 Every client returns **base64 image strings** (any container format); `main.js saveResults()`
 normalizes to PNG via `nativeImage`. Failures throw `OpenAIError(message, status)`; network-layer
 issues go through `friendlyNetworkError()` (timeout / ENOTFOUND / ECONNREFUSED → friendly text).
+Responses may deliver images inline (`b64_json`) **or as URLs** — `itemToB64()` in `openai.js`
+downloads URL-based results (common with proxies and dall-e-3 defaults); a 200-response carrying
+`{error:{message}}` is surfaced as an error, and empty results name the model and point to
+Settings → Default model.
 
 ```js
 // openai-compatible (src/main/openai.js — one class serves OpenAI and AI Pass)

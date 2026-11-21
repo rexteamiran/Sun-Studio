@@ -4,6 +4,34 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.3] — 2026-11-21
+
+### Added
+- **Custom providers** — bring any OpenAI-compatible endpoint (a proxy, a self-hosted server, a
+  local runner): name + base URL + key, editable and deletable at any time. Keys are encrypted
+  with DPAPI like the built-in providers; the active provider may be a custom one.
+- **Model management in Settings** — for every provider: pick from the known list,
+  **fetch the live model list** from the provider's API (one click), or **type any model id
+  manually**.
+- **AI Pass is the default provider** and carries a recommendation card in Settings:
+  *new accounts get $1 of free API credit* (link to aipass.one).
+- **Custom window chrome** — frameless window with a custom title bar (drag to move,
+  provider pill, version badge) and custom minimize / maximize / close controls. The native
+  Windows menu bar is removed; `Ctrl+G` → Gallery, `Ctrl+,` → Settings, `F12` → DevTools.
+
+### Changed
+- Complete UI redesign: refined sidebar (grouped nav, active accent bar), two-column studio
+  layout with sticky controls, richer empty states, layered panels, custom select styling,
+  hover-overlay result cards, accent-colored toasts.
+- Settings store schema → v3 (`customProviders` list; `provider` may reference a custom id);
+  automatic migration from v2 and v1.
+
+### Fixed
+- **"The provider returned no image data."** — responses that return image **URLs** instead of
+  inline base64 (common with proxies and the dall-e-3 default) are now downloaded and rendered.
+  Errors also became actionable: a model that replies with text instead of an image (Google)
+  quotes the reply, and a non-image model selection points to Settings → Default model.
+
 ## [0.0.2] — 2026-11-21
 
 ### Added

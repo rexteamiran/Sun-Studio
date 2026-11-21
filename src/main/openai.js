@@ -26,7 +26,35 @@ function friendlyNetworkError(e) {
 }
 
 function openAiSizeFor(aspect) {
-  return { '1:1': '1024x1024', '3:2': '1536x1024', '2:3': '1024x1536' }[aspect] || '1024x1024';
+  return {
+    '1:1': '1024x1024',
+    '3:2': '1536x1024',
+    '2:3': '1024x1536',
+    '16:9': '1792x1024',
+    '9:16': '1024x1792',
+  }[aspect] || '1024x1024';
+}
+
+/**
+ * Some OpenAI-compatible providers (proxies, dall-e-3 defaults) return image
+ * URLs instead of inline base64 — download and convert so the app can show it.
+ */
+async function fetchAsB64(url) {
+  const res = await fetch(String(url), { signal: AbortSignal.timeout(120000) });
+  if (!res.ok) throw new OpenAIError(`Could not download the generated image (HTTP ${res.status}).`, 0);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (!buf.length) throw new OpenAIError('The provider returned an empty image URL.', 0);
+  return buf.toString('base64');
+}
+
+/** Pull base64 out of one response item, whether it is inline or a URL. */
+async function itemToB64(d) {
+  if (!d || typeof d !== 'object') return null;
+  if (d.b64_json) return d.b64_json;
+  if (d.image && typeof d.image === 'string' && d.image.length > 512) return d.image; // some proxies: raw base64
+  const url = d.url || d.image_url || (d.image_url && d.image_url.url) || d.output_url;
+  if (url) return fetchAsB64(url);
+  return null;
 }
 
 function dallE3SizeFor(aspect) {
@@ -123,8 +151,19 @@ class OpenAICompatibleClient {
       });
       await this._check(res);
       const j = await res.json();
-      const out = (j.data || []).map((d) => d.b64_json).filter(Boolean);
-      if (!out.length) throw new OpenAIError('The provider returned no image data.', 0);
+      if (j && j.error && j.error.message) throw new OpenAIError(j.error.message, 0);
+      const items = Array.isArray(j.data) ? j.data : Array.isArray(j.images) ? j.images : [];
+      const out = [];
+      for (const d of items) {
+        const b = await itemToB64(d);
+        if (b) out.push(b);
+      }
+      if (!out.length) {
+        throw new OpenAIError(
+          `The provider returned no image data for "${model}". If this model does not generate images, pick an image model in Settings → Default model.`,
+          0
+        );
+      }
       return out;
     } catch (e) {
       throw friendlyNetworkError(e);
@@ -164,8 +203,19 @@ class OpenAICompatibleClient {
       });
       await this._check(res);
       const j = await res.json();
-      const out = (j.data || []).map((d) => d.b64_json).filter(Boolean);
-      if (!out.length) throw new OpenAIError('The provider returned no image data.', 0);
+      if (j && j.error && j.error.message) throw new OpenAIError(j.error.message, 0);
+      const items = Array.isArray(j.data) ? j.data : Array.isArray(j.images) ? j.images : [];
+      const out = [];
+      for (const d of items) {
+        const b = await itemToB64(d);
+        if (b) out.push(b);
+      }
+      if (!out.length) {
+        throw new OpenAIError(
+          `The provider returned no image data for "${model}". The model may not support image edits — try an image model that supports the edits endpoint.`,
+          0
+        );
+      }
       return out;
     } catch (e) {
       throw friendlyNetworkError(e);

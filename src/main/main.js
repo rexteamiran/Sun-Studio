@@ -7,7 +7,7 @@ const fsp = fs.promises;
 const { Store } = require('./store');
 const { OpenAICompatibleClient } = require('./openai');
 const { GoogleClient } = require('./google');
-const { PROVIDERS, providerMeta } = require('./providers');
+const { providerMeta, customToMeta } = require('./providers');
 const { Gallery } = require('./gallery');
 const updater = require('./updater');
 
@@ -25,10 +25,16 @@ const tmpDir = () => path.join(app.getPath('userData'), 'tmp');
 // ---------- provider clients ----------
 const clients = {};
 
+/** Registry metadata for a provider id — built-ins plus the user's custom endpoints. */
+function metaFor(providerId) {
+  const meta = providerMeta(providerId, store.data.customProviders);
+  if (!meta) throw new Error('Unknown provider: ' + providerId);
+  return meta;
+}
+
 function getClient(providerId) {
   if (clients[providerId]) return clients[providerId];
-  const meta = providerMeta(providerId);
-  if (!meta) throw new Error('Unknown provider: ' + providerId);
+  const meta = metaFor(providerId);
   if (meta.type === 'google') {
     clients[providerId] = new GoogleClient({ getApiKey: () => store.getApiKey(providerId) });
   } else {
@@ -39,8 +45,14 @@ function getClient(providerId) {
 
 function requireKey(providerId) {
   if (!store.getApiKey(providerId)) {
-    const meta = providerMeta(providerId);
+    const meta = metaFor(providerId);
     throw new Error(`No ${meta ? meta.label : providerId} API key configured. Add it in Settings first.`);
+  }
+}
+
+function sendWinState() {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('win:state', { maximized: win.isMaximized() || win.isFullScreen() });
   }
 }
 
@@ -48,9 +60,10 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1440,
     height: 920,
-    minWidth: 1060,
+    minWidth: 1080,
     minHeight: 680,
-    backgroundColor: '#0b0805',
+    frame: false, // custom title bar (see renderer .titlebar) — no native Windows chrome
+    backgroundColor: '#0b0906',
     show: false,
     title: 'Sun Studio',
     icon: app.isPackaged ? undefined : path.join(__dirname, '..', '..', 'build', 'icon.png'),
@@ -63,76 +76,32 @@ function createWindow() {
     },
   });
   win.once('ready-to-show', () => win.show());
+  win.on('maximize', sendWinState);
+  win.on('unmaximize', sendWinState);
+  win.on('enter-full-screen', sendWinState);
+  win.on('leave-full-screen', sendWinState);
   win.on('closed', () => {
     win = null;
   });
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 }
 
-function buildMenu() {
-  const template = [
-    {
-      label: 'File',
-      submenu: [
-        {
-          label: 'Open Gallery Folder',
-          accelerator: 'CmdOrCtrl+G',
-          click: () => shell.openPath(gallery.dir),
-        },
-        {
-          label: 'Settings',
-          accelerator: 'CmdOrCtrl+,',
-          click: () => {
-            if (win) win.webContents.send('menu:navigate', 'settings');
-          },
-        },
-        { type: 'separator' },
-        { role: 'quit', label: 'Exit' },
-      ],
-    },
-    { role: 'editMenu' },
-    {
-      label: 'View',
-      submenu: [
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'Check for Updates',
-          click: async () => {
-            if (!app.isPackaged) {
-              dialog.showMessageBox(win, { type: 'info', title: 'Updates', message: 'Updates are only available in the installed app.' });
-              return;
-            }
-            await updater.checkForUpdates();
-          },
-        },
-        {
-          label: 'About Sun Studio',
-          click: () =>
-            dialog.showMessageBox(win, {
-              type: 'info',
-              title: 'About Sun Studio',
-              message: `Sun Studio v${app.getVersion()}`,
-              detail:
-                'AI image studio — generate, edit and restyle images with your own accounts\n(OpenAI, AI Pass, Google Gemini).\n\n' +
-                'Your API keys are stored encrypted on this device and are only ever sent directly to the selected provider.',
-            }),
-        },
-      ],
-    },
-  ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+/**
+ * No native application menu — the UI is fully custom. Keep the two developer
+ * conveniences (DevTools, reload) as keyboard shortcuts instead.
+ */
+function setupShortcuts() {
+  Menu.setApplicationMenu(null);
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      win.webContents.toggleDevTools();
+      e.preventDefault();
+    } else if (input.control && input.key.toLowerCase() === 'r') {
+      win.webContents.reload();
+      e.preventDefault();
+    }
+  });
 }
 
 function handle(channel, fn) {
@@ -200,15 +169,42 @@ function registerIpc() {
     packaged: app.isPackaged,
   }));
 
+  // ---------- custom window chrome ----------
+  handle('win:min', () => win && win.minimize());
+  handle('win:max', () => {
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  handle('win:close', () => win && win.close());
+  handle('win:state', () => ({ maximized: win ? win.isMaximized() : false }));
+
+  handle('shell:openExternal', (url) => {
+    const u = String(url || '');
+    if (!/^https?:\/\//i.test(u)) throw new Error('Only http(s) links can be opened.');
+    return shell.openExternal(u);
+  });
+
+  // ---------- settings & providers ----------
   handle('settings:get', () => store.snapshot());
   handle('settings:setApiKey', ({ provider, key }) => store.setApiKey(provider || store.data.provider, String(key || '')));
   handle('settings:update', (partial) => store.update(partial || {}));
+  handle('custom:save', (p) => {
+    const snap = store.saveCustomProvider(p || {});
+    for (const id of Object.keys(clients)) delete clients[id]; // baseUrl may have changed
+    return snap;
+  });
+  handle('custom:delete', (id) => {
+    const snap = store.deleteCustomProvider(String(id || ''));
+    delete clients[id];
+    return snap;
+  });
   handle('key:test', (providerId) => {
     requireKey(providerId || store.data.provider);
     return getClient(providerId || store.data.provider).testKey();
   });
   handle('provider:models', (providerId) => {
-    const meta = providerMeta(providerId);
+    const meta = metaFor(providerId);
     if (!meta) throw new Error('Unknown provider.');
     if (meta.dynamicModels) return getClient(providerId).listModels();
     return meta.models.map((m) => m.id);
@@ -223,7 +219,7 @@ function registerIpc() {
     if (!prompt) throw new Error('Prompt is empty.');
     const providerId = store.data.provider;
     requireKey(providerId);
-    const meta = providerMeta(providerId);
+    const meta = metaFor(providerId);
     const model = (p.model || store.data.settings.models[providerId] || meta.defaultModel).trim();
 
     stage(`Contacting ${meta.label}…`);
@@ -264,7 +260,7 @@ function registerIpc() {
     if (!paths.length) throw new Error('No image selected.');
     const providerId = store.data.provider;
     requireKey(providerId);
-    const meta = providerMeta(providerId);
+    const meta = metaFor(providerId);
     const model = (p.model || store.data.settings.models[providerId] || meta.defaultModel).trim();
 
     stage(paths.length > 1 ? 'Uploading reference images…' : 'Uploading your image…');
@@ -409,11 +405,11 @@ app.whenReady().then(async () => {
     /* no tmp dir yet */
   }
 
-  buildMenu();
   registerIpc();
   await store.initEncryption();
   await store.load();
   createWindow();
+  setupShortcuts();
 
   if (app.isPackaged) {
     updater.initUpdater({

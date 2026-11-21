@@ -12,14 +12,15 @@ restyling), **Gallery**, **Settings**, **in-app updater**.
 Non-goals — never break these:
 - **No AI inside.** The app has no models; it calls provider APIs directly with the user's keys.
 - **No server, no accounts, no telemetry.** Keys live encrypted on the device (Windows DPAPI).
-- Requests go **only** to the configured provider's official API base URL.
+- Requests go **only** to the configured provider's own API base URL (built-ins or a user-added
+  custom OpenAI-compatible endpoint).
 
 ## Stack & rules
 
 | Thing | Choice |
 |---|---|
 | Runtime | Electron 45, CommonJS (`require`) everywhere, Node 22 in CI |
-| Renderer | Vanilla HTML/CSS/JS — **no frameworks, no bundler, no build step** |
+| Renderer | Vanilla HTML/CSS/JS — **no frameworks, no bundler, no build step**; frameless window with custom title bar (no native menu) |
 | Packaging | electron-builder → NSIS installer (`npm run dist`) |
 | Updates | electron-updater (must stay in **`dependencies`**, not devDependencies — it ships in the app) |
 | Installer art | `scripts/gen_assets.py` (Python + Pillow) generates `build/` assets |
@@ -27,22 +28,26 @@ Non-goals — never break these:
 
 Golden rules:
 1. UI text is **English**; replies to the user in chat are **Persian**.
-2. `src/renderer/app.js` has a `PROVIDERS_META` constant that **must mirror** `src/main/providers.js`.
+2. `src/renderer/app.js` has a `PROVIDERS_META` constant that **must mirror** `src/main/providers.js`
+   (built-ins only — user-created custom providers are mapped by `customMetas()` on both sides).
    If you change one, change both.
 3. The version string lives in **three places** you must bump together:
    `package.json`, `scripts/gen_assets.py` (the `center("v0.0.x", …)` line), and `CHANGELOG.md`.
 4. Never print, commit or store the GitHub token (see *Security*).
 5. Test what you can: smoke-test every view after renderer changes (see below). Provider API calls
    cannot be live-tested without real keys — rely on documented request shapes and friendly errors.
+6. New IPC channels touch **three** places: `ipcMain.handle` in `main.js`, the `contextBridge`
+   wrapper in `preload.js`, and the mock API in `app.js` (so the UI still previews in a browser).
 
 ## Repo layout
 
 ```
-src/main/     main.js (window, menu, IPC, smoke hook) · store.js (settings v2 + DPAPI keys)
-              providers.js (provider registry) · openai.js (OpenAI-compatible client)
-              google.js (Gemini client) · gallery.js · updater.js (electron-updater wrapper)
+src/main/     main.js (frameless window, NO app menu, IPC, smoke hook) · store.js (settings v3,
+              DPAPI keys, custom providers) · providers.js (registry + customToMeta)
+              openai.js (OpenAI-compatible client) · google.js (Gemini client)
+              gallery.js · updater.js (electron-updater wrapper)
 src/preload/  preload.js — contextBridge API `window.sun` (the ONLY bridge)
-src/renderer/ index.html · styles.css (v2 dark-gold theme) · app.js (all UI logic)
+src/renderer/ index.html · styles.css (v0.0.3 theme, custom titlebar) · app.js (all UI logic)
 scripts/      gen_assets.py — installer icons/bitmaps/license (version text lives here)
 build/        generated installer assets (committed)
 dist/         build output (gitignored)
@@ -106,16 +111,23 @@ verify the release has `exe + latest.yml + .blockmap`, download the installer in
 
 ## Pitfalls (learned the hard way)
 
+- Some OpenAI-compatible endpoints return image **URLs**, not `b64_json` — `openai.js`
+  `itemToB64()` downloads them; never assume inline base64 only.
 - `electron-updater` in `devDependencies` → updater dies at runtime. It belongs in `dependencies`.
 - `scripts/gen_assets.py` version text and `package.json` version disagree → installer shows the
   wrong version; regenerate assets after bumping.
 - Forgetting `dist/*.yml` + `dist/*.blockmap` in the release → in-app updater breaks silently.
   The workflow already uploads them; don't remove them.
+- Provider metadata is resolved with `providerMeta(id, store.data.customProviders)` in the main
+  process and `metaFor(id)` in the renderer — never call the static registry directly, or custom
+  providers break.
 - Google (Gemini) has **no mask input**: the renderer composites a magenta cover over painted areas
   and prefixes the prompt (`buildCoveredImage` in `app.js`). Keep that path intact when touching Edit.
 - OpenAI-compatible masks must be **binary** (opaque black/transparent PNG): `opaqueStrokes()` in
   `app.js` thresholds the painted strokes — keep it before `exportMask()`/cover compositing.
 - `dall-e-3` has no edits endpoint and different params (see `openai.js` special-casing).
 - Gemini `image_size` values must be **uppercase** `1K/2K/4K`.
+- The window is `frame: false` with `Menu.setApplicationMenu(null)` — window controls are IPC
+  (`win:min/max/close`); don't re-introduce a native menu.
 - The sandbox recycles between messages: processes die, files persist. Never rely on a running
   Xvfb/electron from a previous message; re-start them.

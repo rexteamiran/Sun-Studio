@@ -35,6 +35,36 @@ function collectImageBlocks(node, out) {
   }
 }
 
+/** First human-readable text block in a response (model refusals, notes). */
+function firstText(node) {
+  if (!node || typeof node !== 'object') return '';
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const t = firstText(n);
+      if (t) return t;
+    }
+    return '';
+  }
+  const t = typeof node.text === 'string' ? node.text : '';
+  if (t.trim()) return t.trim();
+  for (const k of Object.keys(node)) {
+    if (k === 'data' || k === 'prompt') continue;
+    const r = firstText(node[k]);
+    if (r) return r;
+  }
+  return '';
+}
+
+function noImageError(model, j) {
+  const t = firstText(j || {});
+  const said = t ? ` The model replied: "${t.slice(0, 180)}"` : '';
+  return new OpenAIError(
+    `Google returned no image data for "${model}".` +
+      (said || ' Try a different image model in Settings → Default model.'),
+    0
+  );
+}
+
 /**
  * Google Gemini image models via the Gemini API:
  *  - new:  POST /v1beta/interactions  (Api-Revision: 2026-05-20)
@@ -138,7 +168,7 @@ class GoogleClient {
       const j = await res.json();
       const blocks = [];
       collectImageBlocks(j, blocks);
-      if (!blocks.length) throw new OpenAIError('Google returned no image data.', 0);
+      if (!blocks.length) throw noImageError(model, j);
       return blocks.slice(0, 1).map((b) => b.data);
     } catch (e) {
       throw friendlyNetworkError(e);
@@ -165,7 +195,7 @@ class GoogleClient {
       const j = await res.json();
       const blocks = [];
       collectImageBlocks(j, blocks);
-      if (!blocks.length) throw new OpenAIError('Google returned no image data.', 0);
+      if (!blocks.length) throw noImageError(model, j);
       return blocks.map((b) => b.data);
     } catch (e) {
       throw friendlyNetworkError(e);
