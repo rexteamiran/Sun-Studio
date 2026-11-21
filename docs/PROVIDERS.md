@@ -10,6 +10,7 @@ How the provider layer works and how to add a provider. The registry lives in
 |---|---|---|---|---|---|
 | `openai` | `openai-compatible` | `https://api.openai.com/v1` | `sk-…` | gpt-image-1, gpt-image-1-mini | official Images API; mask = binary PNG; `background: transparent/opaque` |
 | `aipass` | `openai-compatible` | `https://aipass.one/v1` | `sk-aikey-…` | live from `GET /v1/models` (filtered by `IMAGE_MODEL_RE`), defaults gpt-image-1 / gpt-image-1-mini / dall-e-3 | universal AI wallet/proxy; docs: https://aipass.one/docs/rest/openai-compatible; allowed endpoints include `POST /v1/images/generations`, `POST /v1/images/edits`; 402 = out of funds, 403 = key invalid / endpoint not allowed |
+| `kie` | `kie` | `https://api.kie.ai` | kie.ai API key (console) | nano-banana-2-1, nano-banana-pro, nano-banana, seedream/5-pro-text-to-image, seedream/5-pro-image-to-image, gpt-image/1.5-text-to-image, gpt-image/1.5-image-to-image, grok-imagine/text-to-image, grok-imagine/image-to-image | **async job API** (`src/main/kie.js`): `POST /api/v1/jobs/createTask` → poll `GET /api/v1/jobs/recordInfo?taskId=…` until `state: success/fail` → download `resultJson.resultUrls`; body `code` is the real status (HTTP is always 200); credits via `GET /api/v1/chat/credit` (the `Test` button shows the balance); i2i models need **uploaded URLs** — `POST /api/file-base64-upload` (24h retention); input field per family: `image_input` (nano-banana), `image_urls` (seedream/grok), `input_urls` (gpt-image); grok i2i prompts get an `@image(1)` reference appended; quality mapping: nano-banana takes `resolution` 1K/2K/4K directly, seedream 1K→`basic` 2K/4K→`high`, gpt-image 1K→`medium` 2K/4K→`high`, grok has none; no mask input (magenta-cover trick); no `background` |
 | `google` | `google` | `https://generativelanguage.googleapis.com/v1beta` | `AIza…` (AI Studio) | gemini-nano-banana-2.1, gemini-3.1-flash-lite-image, gemini-3.1-flash-image, gemini-3-pro-image, gemini-2.5-flash-image | Interactions API first, legacy `generateContent` fallback; `image_size` **uppercase** `1K/2K/4K`; no mask input (magenta-cover trick); no `background` |
 
 ## Registry entry fields (`providers.js`)
@@ -73,6 +74,12 @@ edit({ imagePaths[], maskPng, prompt, model, aspect, quality, n, background })
 testKey()                                  // GET /v1beta/models (x-goog-api-key)
 generate({ prompt, model, aspect, imageSize, n })             // sequential calls, one image each
 edit({ imageBuffers: [{mime, data}], prompt, model, aspect, imageSize })
+
+// kie.ai (src/main/kie.js — job-based)
+testKey()                                  // GET /api/v1/chat/credit → {ok, credits}
+generate({ prompt, model, aspect, imageSize, n, onStage })    // createTask ×n (parallel) → poll → download
+edit({ imageBuffers: [{mime, data}], prompt, model, aspect, imageSize, n, onStage })
+                                           // uploads each buffer via /api/file-base64-upload first
 ```
 
 Routing in `main.js`: `getClient(providerId)` caches one client per provider and injects
@@ -123,7 +130,7 @@ POST /v1beta/models/{model}:generateContent
 | provider | mask handling |
 |---|---|
 | OpenAI-compatible | renderer `exportMask()` sends a **binary** PNG (opaque black = keep, transparent = repaint) as the `mask` field; strokes are thresholded by `opaqueStrokes()` first |
-| google | no mask input — renderer `buildCoveredImage()` composites solid `#ff00ff` over painted areas, `file:writeTempPng` saves it, prompt is prefixed with *"Replace the solid magenta-covered area with the following change…"* |
+| google, kie | no mask input — renderer `buildCoveredImage()` composites solid `#ff00ff` over painted areas, `file:writeTempPng` saves it, prompt is prefixed with *"Replace the solid magenta-covered area with the following change…"* |
 
 ## Adding a provider — checklist
 

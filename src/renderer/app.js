@@ -48,6 +48,31 @@ const PROVIDERS_META = {
     ],
     defaultModel: 'gpt-image-1',
   },
+  kie: {
+    id: 'kie',
+    label: 'kie.ai',
+    type: 'AI marketplace · task API',
+    note: 'kie.ai',
+    keyHint: 'kie.ai API key',
+    aspects: ['1:1', '3:2', '2:3', '16:9', '9:16', '4:3'],
+    qualities: null,
+    resolutions: ['1K', '2K', '4K'],
+    background: false,
+    dynamicModels: false,
+    // every id verified against its docs.kie.ai endpoint page (job-based API)
+    models: [
+      { id: 'nano-banana-2-1', label: 'nano-banana-2-1 · recommended' },
+      { id: 'nano-banana-pro', label: 'nano-banana-pro · up to 4K' },
+      { id: 'nano-banana', label: 'nano-banana · legacy' },
+      { id: 'seedream/5-pro-text-to-image', label: 'Seedream 5 Pro · text to image' },
+      { id: 'seedream/5-pro-image-to-image', label: 'Seedream 5 Pro · edit' },
+      { id: 'gpt-image/1.5-text-to-image', label: 'GPT-Image 1.5 · text to image' },
+      { id: 'gpt-image/1.5-image-to-image', label: 'GPT-Image 1.5 · edit' },
+      { id: 'grok-imagine/text-to-image', label: 'Grok Imagine · text to image' },
+      { id: 'grok-imagine/image-to-image', label: 'Grok Imagine · edit' },
+    ],
+    defaultModel: 'nano-banana-2-1',
+  },
   google: {
     id: 'google',
     label: 'Google Gemini',
@@ -513,7 +538,11 @@ function renderProviderCards() {
       setStatus('Testing connection…', '');
       try {
         const r = await api.testKey(id);
-        setStatus('Connection successful — ' + r.models + ' models available.', 'ok');
+        const detail =
+          r.credits != null
+            ? ' — balance: ' + r.credits + ' credits'
+            : ' — ' + r.models + ' models available.';
+        setStatus('Connection successful' + detail, 'ok');
         if (m.dynamicModels) {
           state.dynamicModels[id] = r.ids || [];
           fillSettings();
@@ -1008,9 +1037,9 @@ function setTool(t) {
 
 function updateMaskNote() {
   const note = $('#mask-note');
-  const googleMask = meta().type === 'google' && editCtx.strokes > 0;
-  if (googleMask) {
-    note.textContent = 'Gemini has no mask input — your painted area will be covered with a magenta marker and replaced according to your prompt.';
+  const noMaskProvider = ['google', 'kie'].includes(meta().type) && editCtx.strokes > 0;
+  if (noMaskProvider) {
+    note.textContent = 'This provider has no mask input — your painted area will be covered with a magenta marker and replaced according to your prompt.';
     note.hidden = false;
   } else {
     note.hidden = true;
@@ -1191,7 +1220,7 @@ function bindEdit() {
     let maskDataUrl = exportMask();
     let promptFinal = prompt;
 
-    if (m.type === 'google' && maskDataUrl) {
+    if (['google', 'kie'].includes(m.type) && maskDataUrl) {
       const covered = buildCoveredImage();
       if (covered) {
         try {

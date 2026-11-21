@@ -7,6 +7,7 @@ const fsp = fs.promises;
 const { Store } = require('./store');
 const { OpenAICompatibleClient } = require('./openai');
 const { GoogleClient } = require('./google');
+const { KieClient } = require('./kie');
 const { providerMeta, customToMeta } = require('./providers');
 const { Gallery } = require('./gallery');
 const updater = require('./updater');
@@ -37,6 +38,8 @@ function getClient(providerId) {
   const meta = metaFor(providerId);
   if (meta.type === 'google') {
     clients[providerId] = new GoogleClient({ getApiKey: () => store.getApiKey(providerId) });
+  } else if (meta.type === 'kie') {
+    clients[providerId] = new KieClient({ providerMeta: meta, getApiKey: () => store.getApiKey(providerId) });
   } else {
     clients[providerId] = new OpenAICompatibleClient({ providerMeta: meta, getApiKey: () => store.getApiKey(providerId) });
   }
@@ -232,6 +235,15 @@ function registerIpc() {
         imageSize: p.imageSize,
         n: p.n,
       });
+    } else if (meta.type === 'kie') {
+      b64s = await getClient(providerId).generate({
+        prompt,
+        model,
+        aspect: p.aspect,
+        imageSize: p.imageSize,
+        n: p.n,
+        onStage: (s) => stage(s),
+      });
     } else {
       b64s = await getClient(providerId).generate({
         prompt,
@@ -249,7 +261,7 @@ function registerIpc() {
       prompt,
       model,
       aspect: p.aspect,
-      quality: meta.type === 'google' ? p.imageSize : p.quality,
+      quality: meta.type === 'google' || meta.type === 'kie' ? p.imageSize : p.quality,
     });
   });
 
@@ -270,7 +282,7 @@ function registerIpc() {
       prompt,
       model,
       aspect: p.aspect,
-      quality: meta.type === 'google' ? p.imageSize : p.quality,
+      quality: meta.type === 'google' || meta.type === 'kie' ? p.imageSize : p.quality,
       source: path.basename(paths[0]),
     };
 
@@ -294,6 +306,26 @@ function registerIpc() {
         });
         b64s.push(...one);
       }
+      stage('Saving results…');
+      return saveResults(b64s, metaOut);
+    }
+
+    if (meta.type === 'kie') {
+      // kie.ai accepts image URLs only — upload local files first, then run job tasks.
+      const imageBuffers = [];
+      for (const pth of paths) {
+        const buf = await fsp.readFile(pth);
+        imageBuffers.push({ mime: 'image/png', data: buf.toString('base64') });
+      }
+      const b64s = await getClient(providerId).edit({
+        imageBuffers,
+        prompt,
+        model,
+        aspect: p.aspect,
+        imageSize: p.imageSize,
+        n: Math.min(4, Math.max(1, Number(p.n) || 1)),
+        onStage: (s) => stage(s),
+      });
       stage('Saving results…');
       return saveResults(b64s, metaOut);
     }

@@ -4,6 +4,22 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.6] — 2026-11-21
+
+### Added
+- **kie.ai provider** — the fourth built-in provider, implemented directly from docs.kie.ai:
+  nine verified image models (nano-banana-2-1, nano-banana-pro, nano-banana, Seedream 5 Pro
+  text-to-image/edit, GPT-Image 1.5 text-to-image/edit, Grok Imagine text-to-image/edit) behind
+  a new async task client (`src/main/kie.js`): `createTask` → poll `recordInfo` → download
+  `resultUrls`, with per-family input recipes (image field names, aspect enums, quality knobs)
+  and friendly body-code errors (kie.ai returns HTTP 200 for everything).
+- kie.ai Edit/Image-to-Image works too: local images are uploaded via the base64 upload API and
+  passed as URLs; Edit keeps the magenta-cover mask trick; the `Test` button shows your credit
+  balance. Polling surfaces live progress (e.g. "Generating on kie.ai… 40%") next to the timer.
+
+### Improved
+- The mask note in Edit now speaks generically for providers without mask input (Google, kie.ai).
+
 ## [0.0.5] — 2026-11-21
 
 ### Added

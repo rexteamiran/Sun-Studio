@@ -22,6 +22,7 @@
 | **AI Pass** ⭐ recommended | OpenAI-compatible wallet (`https://aipass.one/v1`) | `sk-aikey-…` from the Developer Dashboard | gpt-image-1, dall-e-3 and more (model list is fetched live from the proxy) |
 | **OpenAI** | Direct API | `sk-…` from platform.openai.com | gpt-image-1, gpt-image-1-mini |
 | **Google Gemini** | Gemini API | `AIza…` from aistudio.google.com/apikey | Nano Banana 2.1, Flash Lite Image, Flash Image, Nano Banana Pro (1K/2K/4K) |
+| **kie.ai** | AI marketplace (async task API) | kie.ai API key from the kie.ai console | nano-banana-2-1, nano-banana-pro, Seedream 5 Pro, GPT-Image 1.5, Grok Imagine (1K/2K/4K) |
 | **Custom** | Any OpenAI-compatible endpoint | your key | whatever the endpoint serves — type model ids manually or fetch the live list |
 
 > 💡 **AI Pass is the recommended way to start** — [new accounts get **$1 of free API credit**](https://aipass.one), enough to try every model in the app.
@@ -81,13 +82,13 @@ Pushing a tag like `v0.0.3` triggers the GitHub Actions workflow in `.github/wor
 
 ## Privacy & security
 
-- API keys are stored encrypted on this device (Windows DPAPI via Electron `safeStorage`) and are only decrypted in the main process to sign requests to the selected provider (`api.openai.com`, `aipass.one` or `generativelanguage.googleapis.com`).
+- API keys are stored encrypted on this device (Windows DPAPI via Electron `safeStorage`) and are only decrypted in the main process to sign requests to the selected provider (`api.openai.com`, `aipass.one`, `api.kie.ai` or `generativelanguage.googleapis.com`).
 - Prompts and images are sent **directly** from your machine to the active provider. Sun Studio runs no server and collects no telemetry.
 - Generated images and history live in `%APPDATA%/Sun Studio/` on your disk.
 
 ## Roadmap
 
-- v0.0.6 — more providers behind the same UI (Stability, fal.ai), batch export, prompt library
+- v0.0.7 — more providers behind the same UI (Stability, fal.ai), batch export, prompt library
 - v0.1 — drag & drop from Explorer, per-project galleries, auto-update channel with prereleases
 
 ## License

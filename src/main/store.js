@@ -5,13 +5,14 @@ const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 
-const BUILTIN_IDS = ['openai', 'aipass', 'google'];
+const BUILTIN_IDS = ['openai', 'aipass', 'kie', 'google'];
 
 const DEFAULT_SETTINGS = {
   provider: 'aipass', // AI Pass is the recommended default (new accounts get $1 free credit)
   models: {
     openai: 'gpt-image-1',
     aipass: 'gpt-image-1',
+    kie: 'nano-banana-2-1',
     google: 'gemini-nano-banana-2.1',
   },
   size: '1:1',

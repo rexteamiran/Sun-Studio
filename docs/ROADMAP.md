@@ -4,7 +4,7 @@ Living document — when you ship a milestone, move leftovers here and note deci
 `CHANGELOG.md`. Keep scope per release small (one theme + fixes) so the tag-driven release
 routine stays boring.
 
-## v0.0.6 — next candidates
+## v0.0.7 — next candidates
 - More providers on the same layer (Stability AI, fal.ai, OpenRouter) — see
   `docs/PROVIDERS.md` § "Adding a provider"; each is one registry entry + client + mirror.
 - Batch export from Gallery (zip or folder pick).
@@ -41,3 +41,6 @@ routine stays boring.
 - 2026-11-21 — v0.0.5: the entire palette moved to CSS variables with six themes
   (sunset/ember/ocean/forest/violet/paper) switchable in Settings → Appearance and persisted in
   the store; Create gained a searchable model picker with badges; dall-e-3 added for OpenAI.
+- 2026-11-21 — v0.0.6: kie.ai added as the first job-based (async) provider — `src/main/kie.js`
+  polls `recordInfo` and normalizes nine documented models into the existing UI (per-family
+  input recipes + credit balance in `testKey`); masked Edit reuses the magenta-cover trick.
