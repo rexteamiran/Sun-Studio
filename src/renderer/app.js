@@ -3,6 +3,71 @@
 // ---------- API bridge (real Electron preload, or mock for browser preview) ----------
 const api = window.sun || createMockApi();
 
+// ---------- provider metadata (kept in sync with src/main/providers.js) ----------
+const PROVIDERS_META = {
+  openai: {
+    id: 'openai',
+    label: 'OpenAI',
+    type: 'Direct API',
+    note: 'platform.openai.com',
+    keyHint: 'sk-…',
+    aspects: ['1:1', '3:2', '2:3'],
+    qualities: ['low', 'medium', 'high'],
+    resolutions: null,
+    background: true,
+    dynamicModels: false,
+    models: [
+      { id: 'gpt-image-1', label: 'gpt-image-1 · best quality' },
+      { id: 'gpt-image-1-mini', label: 'gpt-image-1-mini · faster & cheaper' },
+    ],
+    defaultModel: 'gpt-image-1',
+  },
+  aipass: {
+    id: 'aipass',
+    label: 'AI Pass',
+    type: 'OpenAI-compatible wallet',
+    note: 'aipass.one',
+    keyHint: 'sk-aikey-…',
+    aspects: ['1:1', '3:2', '2:3'],
+    qualities: ['low', 'medium', 'high'],
+    resolutions: null,
+    background: true,
+    dynamicModels: true,
+    models: [
+      { id: 'gpt-image-1', label: 'gpt-image-1' },
+      { id: 'gpt-image-1-mini', label: 'gpt-image-1-mini' },
+      { id: 'dall-e-3', label: 'dall-e-3' },
+    ],
+    defaultModel: 'gpt-image-1',
+  },
+  google: {
+    id: 'google',
+    label: 'Google Gemini',
+    type: 'Gemini API',
+    note: 'aistudio.google.com',
+    keyHint: 'AIza…',
+    aspects: ['1:1', '3:2', '2:3', '16:9', '9:16', '4:3'],
+    qualities: null,
+    resolutions: ['1K', '2K', '4K'],
+    background: false,
+    dynamicModels: false,
+    models: [
+      { id: 'gemini-nano-banana-2.1', label: 'Nano Banana 2.1 · recommended' },
+      { id: 'gemini-3.1-flash-lite-image', label: 'Flash Lite Image · fastest' },
+      { id: 'gemini-3.1-flash-image', label: 'Flash Image · up to 4K' },
+      { id: 'gemini-3-pro-image', label: 'Nano Banana Pro · 4K' },
+      { id: 'gemini-2.5-flash-image', label: 'Nano Banana (legacy)' },
+    ],
+    defaultModel: 'gemini-nano-banana-2.1',
+  },
+};
+
+const PROVIDER_IDS = Object.keys(PROVIDERS_META);
+const ASPECT_LABELS = { '1:1': 'Square · 1:1', '3:2': 'Landscape · 3:2', '2:3': 'Portrait · 2:3', '16:9': 'Wide · 16:9', '9:16': 'Tall · 9:16', '4:3': 'Classic · 4:3' };
+const QUALITY_LABELS = { low: 'Low · fastest', medium: 'Medium', high: 'High · slowest' };
+const RESOLUTION_LABELS = { '1K': '1K · default', '2K': '2K · sharp', '4K': '4K · sharpest' };
+const IMAGE_MODEL_RE = /image|dall-e|flux|seedream|banana|imagen|stable|sd3|sdxl|recraft|ideogram|grok/i;
+
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -38,10 +103,19 @@ const ICONS = {
 const state = {
   view: 'create',
   settings: null,
+  info: null,
   working: false,
   gallery: [],
   refs: [],
   modalItem: null,
+  updateState: { type: 'idle' },
+  dynamicModels: {},
+};
+
+const meta = () => PROVIDERS_META[state.provider] || PROVIDERS_META.openai;
+const modelFor = () => {
+  const s = (state.settings && state.settings.settings) || {};
+  return (s.models && s.models[state.provider]) || meta().defaultModel;
 };
 
 // ---------- navigation ----------
@@ -57,17 +131,88 @@ $$('.nav-item').forEach((b) => b.addEventListener('click', () => nav(b.dataset.v
 $('#banner-key').addEventListener('click', () => nav('settings'));
 if (api.onMenuNav) api.onMenuNav(nav);
 
-// ---------- settings ----------
+// ---------- provider pill ----------
+function renderProviderPill() {
+  const pill = $('#provider-pill');
+  pill.innerHTML = '';
+  for (const id of PROVIDER_IDS) {
+    const m = PROVIDERS_META[id];
+    const info = (state.settings && state.settings.providers && state.settings.providers[id]) || { hasKey: false };
+    const b = document.createElement('button');
+    b.className = 'pp-btn' + (id === state.provider ? ' active' : '');
+    b.title = m.label + ' — ' + (info.hasKey ? 'key saved' : 'no key yet');
+    b.innerHTML = '<span class="dot' + (info.hasKey ? ' ok' : '') + '"></span><span>' + esc(m.label) + '</span>';
+    b.addEventListener('click', () => switchProvider(id));
+    pill.appendChild(b);
+  }
+}
+
+async function switchProvider(id) {
+  if (id === state.provider) return;
+  try {
+    state.settings = await api.updateSettings({ provider: id });
+    state.provider = id;
+    renderProviderPill();
+    renderProviderCards();
+    populateAllViewOptions();
+    paintKeyUi();
+    fillSettings();
+    toast('Provider switched to ' + PROVIDERS_META[id].label + '.', 'ok', 2600);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ---------- per-provider option population ----------
+function fillSelect(sel, values, labels) {
+  sel.innerHTML = '';
+  for (const v of values) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = (labels && labels[v]) || v;
+    sel.appendChild(o);
+  }
+}
+
+function populateViewOptions(view) {
+  const m = meta();
+  const sizeSel = $('#' + view + '-size');
+  const prevSize = sizeSel.value;
+  fillSelect(sizeSel, m.aspects, ASPECT_LABELS);
+  if (m.aspects.includes(prevSize)) sizeSel.value = prevSize;
+
+  const qSel = $('#' + view + '-quality');
+  const qLabel = $('#' + view + '-quality-label');
+  if (m.resolutions) {
+    qLabel.textContent = 'Resolution';
+    fillSelect(qSel, m.resolutions, RESOLUTION_LABELS);
+  } else {
+    qLabel.textContent = 'Quality';
+    fillSelect(qSel, m.qualities, QUALITY_LABELS);
+  }
+
+  const bgField = $('#' + view + '-bg-field');
+  if (bgField) bgField.style.display = m.background ? '' : 'none';
+}
+
+function populateAllViewOptions() {
+  for (const v of ['create', 'edit', 'restyle']) populateViewOptions(v);
+  updateMaskNote();
+}
+
+// ---------- settings / key UI ----------
 function paintKeyUi() {
   const s = state.settings;
+  const info = (s && s.providers && s.providers[state.provider]) || { hasKey: false, hint: '', encrypted: false };
   const badge = $('#key-badge');
-  if (s && s.hasKey) {
+  if (info.hasKey) {
     badge.className = 'key-badge ok';
-    badge.textContent = 'Key ' + s.hint + (s.encrypted ? ' · encrypted' : '');
+    badge.textContent = PROVIDERS_META[state.provider].label + ' key ' + (info.hint || '') + (info.encrypted ? ' · encrypted' : '');
     $('#key-banner').hidden = true;
   } else {
     badge.className = 'key-badge warn';
-    badge.textContent = 'No API key set';
+    badge.textContent = 'No ' + PROVIDERS_META[state.provider].label + ' key set';
+    $('#key-banner-text').textContent = 'Connect your ' + PROVIDERS_META[state.provider].label + ' API key to start generating.';
     $('#key-banner').hidden = false;
   }
 }
@@ -76,101 +221,146 @@ async function refreshSettings() {
   try {
     state.settings = await api.getSettings();
   } catch (e) {
-    state.settings = { settings: {}, hasKey: false, encrypted: false, hint: '' };
+    state.settings = { provider: 'openai', settings: {}, providers: {} };
   }
+  state.provider = (state.settings && state.settings.provider) || 'openai';
   paintKeyUi();
+}
+
+// ---------- provider cards ----------
+function renderProviderCards() {
+  const wrap = $('#provider-cards');
+  wrap.innerHTML = '';
+  for (const id of PROVIDER_IDS) {
+    const m = PROVIDERS_META[id];
+    const info = (state.settings && state.settings.providers && state.settings.providers[id]) || { hasKey: false, hint: '', encrypted: false };
+    const card = document.createElement('div');
+    card.className = 'prov-card' + (id === state.provider ? ' active' : '');
+    card.dataset.provider = id;
+    card.innerHTML =
+      '<div class="prov-head"><span class="prov-name">' + esc(m.label) + '</span>' +
+      (id === state.provider ? '<span class="prov-badge">Active</span>' : '') +
+      '</div>' +
+      '<div class="prov-type">' + esc(m.type) + ' · ' + esc(m.note) + '</div>' +
+      '<div class="prov-status ' + (info.hasKey ? 'ok' : 'warn') + '">' +
+      (info.hasKey
+        ? 'Key ' + esc(info.hint || '') + (info.encrypted ? ' · encrypted' : '')
+        : 'No key saved yet') +
+      '</div>' +
+      '<div class="key-row"><input type="password" placeholder="' + esc(m.keyHint) + '" autocomplete="off" spellcheck="false" />' +
+      '<button class="btn ghost small" data-act="save">Save</button></div>' +
+      '<div class="btn-row"><button class="btn ghost small" data-act="test">Test</button>' +
+      '<button class="btn primary small" data-act="use"' + (id === state.provider ? ' disabled' : '') + '>Use provider</button></div>' +
+      '<div class="status" data-role="status"></div>';
+
+    const input = card.querySelector('input');
+    const statusEl = card.querySelector('[data-role="status"]');
+    const setStatus = (text, cls) => {
+      statusEl.textContent = text;
+      statusEl.className = 'status ' + (cls || '');
+    };
+
+    card.querySelector('[data-act="save"]').addEventListener('click', async () => {
+      const key = input.value.trim();
+      if (!key) return setStatus('Paste a key first (' + m.keyHint + ').', 'warn');
+      try {
+        state.settings = await api.setApiKey(id, key);
+        input.value = '';
+        renderProviderCards();
+        renderProviderPill();
+        paintKeyUi();
+        fillSettings();
+        toast(m.label + ' key saved.', 'ok');
+      } catch (e) {
+        setStatus(e.message, 'err');
+      }
+    });
+
+    card.querySelector('[data-act="test"]').addEventListener('click', async () => {
+      setStatus('Testing connection…', '');
+      try {
+        const r = await api.testKey(id);
+        setStatus('Connection successful — ' + r.models + ' models available.', 'ok');
+        if (m.dynamicModels) {
+          state.dynamicModels[id] = r.ids || [];
+          fillSettings();
+        }
+      } catch (e) {
+        setStatus(e.message, 'err');
+      }
+    });
+
+    card.querySelector('[data-act="use"]').addEventListener('click', () => switchProvider(id));
+
+    wrap.appendChild(card);
+  }
+}
+
+// ---------- settings panel ----------
+function modelChoices(id) {
+  const m = PROVIDERS_META[id];
+  let ids = m.models.map((x) => x.id);
+  if (m.dynamicModels && state.dynamicModels[id] && state.dynamicModels[id].length) {
+    const imgIds = state.dynamicModels[id].filter((x) => IMAGE_MODEL_RE.test(x));
+    ids = imgIds.length ? imgIds : state.dynamicModels[id];
+  }
+  return ids;
 }
 
 function fillSettings() {
   const s = state.settings;
   if (!s) return;
   const d = s.settings || {};
-  $('#set-model').value = d.model || 'gpt-image-1';
-  $('#set-quality').value = d.quality || 'medium';
-  $('#set-size').value = d.size || '1024x1024';
+
+  // model select for the active provider
+  const sel = $('#set-model');
+  sel.innerHTML = '';
+  for (const id of modelChoices(state.provider)) {
+    const m = PROVIDERS_META[state.provider].models.find((x) => x.id === id);
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = m ? m.label : id;
+    sel.appendChild(o);
+  }
+  sel.value = modelFor(state.provider);
+  if (sel.selectedIndex < 0) {
+    const o = document.createElement('option');
+    o.value = modelFor(state.provider);
+    o.textContent = modelFor(state.provider);
+    sel.appendChild(o);
+    sel.value = modelFor(state.provider);
+  }
+
   $('#outdir-label').textContent = d.outputDir || 'No folder chosen';
   $('#outdir-label').title = d.outputDir || '';
   $('#autosave').checked = !!d.autoSave;
-  if (s.hasKey) {
-    setKeyStatus('Key saved (' + (s.encrypted ? 'encrypted with DPAPI' : 'plain text — encryption unavailable') + '): ' + s.hint, 'ok');
-  } else {
-    setKeyStatus('No key saved yet. Get one at platform.openai.com/api-keys', '');
+  $('#check-updates').checked = d.checkUpdates !== false;
+
+  if (state.info) {
+    $('#about-info').textContent = 'v' + state.info.version + ' · Electron ' + state.info.electron;
   }
+  if (state.updateState && state.updateState.type !== 'idle') applyUpdateState(state.updateState);
 }
 
-function setKeyStatus(text, cls) {
-  const elx = $('#key-status');
-  elx.textContent = text;
-  elx.className = 'status ' + (cls || '');
-}
-
-async function saveDefaults() {
+async function saveModelDefault() {
   try {
-    await api.updateSettings({ model: $('#set-model').value, quality: $('#set-quality').value, size: $('#set-size').value });
+    const models = {};
+    models[state.provider] = $('#set-model').value;
+    state.settings = await api.updateSettings({ models });
+    toast('Default model saved.', 'ok', 2200);
   } catch (e) {
     toast(e.message, 'error');
   }
 }
 
 function bindSettings() {
-  $('#key-eye').addEventListener('click', () => {
-    const inp = $('#key-input');
-    const show = inp.type === 'password';
-    inp.type = show ? 'text' : 'password';
-    $('#key-eye').textContent = show ? 'Hide' : 'Show';
-  });
-
-  $('#key-save').addEventListener('click', async () => {
-    const key = $('#key-input').value.trim();
-    if (!key) {
-      setKeyStatus('Paste a key first (it starts with sk-).', 'warn');
-      return;
-    }
-    try {
-      state.settings = await api.setApiKey(key);
-      $('#key-input').value = '';
-      paintKeyUi();
-      fillSettings();
-      toast('API key saved.', 'ok');
-    } catch (e) {
-      toast(e.message, 'error');
-    }
-  });
-
-  $('#key-remove').addEventListener('click', async () => {
-    try {
-      state.settings = await api.setApiKey('');
-      paintKeyUi();
-      fillSettings();
-      toast('API key removed.', 'warn');
-    } catch (e) {
-      toast(e.message, 'error');
-    }
-  });
-
-  $('#key-test').addEventListener('click', async () => {
-    setKeyStatus('Testing connection…', '');
-    try {
-      const r = await api.testKey();
-      setKeyStatus(
-        'Connection successful — ' + r.models + ' models available' + (r.hasImageModel ? '.' : ' (image models not listed by name).'),
-        'ok'
-      );
-    } catch (e) {
-      setKeyStatus(e.message, 'err');
-    }
-  });
-
-  $('#set-model').addEventListener('change', saveDefaults);
-  $('#set-quality').addEventListener('change', saveDefaults);
-  $('#set-size').addEventListener('change', saveDefaults);
+  $('#set-model').addEventListener('change', saveModelDefault);
 
   $('#outdir-pick').addEventListener('click', async () => {
     try {
       const dir = await api.pickOutputDir();
       if (!dir) return;
-      await api.updateSettings({ outputDir: dir });
-      state.settings = await api.getSettings();
+      state.settings = await api.updateSettings({ outputDir: dir });
       fillSettings();
     } catch (e) {
       toast(e.message, 'error');
@@ -190,9 +380,101 @@ function bindSettings() {
   $('#autosave').addEventListener('change', (ev) => {
     api.updateSettings({ autoSave: ev.target.checked }).catch((e) => toast(e.message, 'error'));
   });
+
+  $('#check-updates').addEventListener('change', (ev) => {
+    api.updateSettings({ checkUpdates: ev.target.checked }).catch((e) => toast(e.message, 'error'));
+  });
+
+  $('#update-check').addEventListener('click', async () => {
+    setStatusUpdate('Checking for updates…', '');
+    try {
+      const r = await api.updateCheck();
+      if (r && r.error === 'dev') setStatusUpdate('Updates are only available in the installed app.', 'warn');
+    } catch (e) {
+      setStatusUpdate(e.message, 'err');
+    }
+  });
+  $('#update-download').addEventListener('click', () => {
+    setStatusUpdate('Downloading update…', '');
+    api.updateDownload().catch((e) => setStatusUpdate(e.message, 'err'));
+  });
+  $('#update-install').addEventListener('click', () => api.updateInstall().catch(() => {}));
 }
 
-// ---------- job runner (progress + results) ----------
+function setStatusUpdate(text, cls) {
+  const elx = $('#update-status');
+  elx.textContent = text;
+  elx.className = 'update-status ' + (cls || '');
+}
+
+// ---------- updater UI ----------
+function applyUpdateState(u) {
+  state.updateState = u;
+  const chip = $('#update-chip');
+  const bar = $('#update-bar');
+  const fill = $('#update-bar-fill');
+  const dl = $('#update-download');
+  const inst = $('#update-install');
+
+  chip.hidden = true;
+  chip.classList.remove('solid');
+  bar.hidden = true;
+  dl.hidden = true;
+  inst.hidden = true;
+
+  switch (u.type) {
+    case 'checking':
+      setStatusUpdate('Checking for updates…', '');
+      break;
+    case 'none':
+      setStatusUpdate('You are on the latest version' + (u.version ? ' (v' + u.version + ')' : '') + '.', 'ok');
+      break;
+    case 'available':
+      chip.textContent = 'Update v' + u.version + ' available';
+      chip.hidden = false;
+      setStatusUpdate('Version ' + u.version + ' is available — download it to install.', 'warn');
+      dl.hidden = false;
+      break;
+    case 'progress':
+      chip.textContent = 'Downloading ' + (u.percent || 0) + '%';
+      chip.hidden = false;
+      bar.hidden = false;
+      fill.style.width = (u.percent || 0) + '%';
+      setStatusUpdate('Downloading update — ' + (u.percent || 0) + '%', '');
+      break;
+    case 'downloaded':
+      chip.textContent = 'Install update' + (u.version ? ' v' + u.version : '');
+      chip.hidden = false;
+      chip.classList.add('solid');
+      setStatusUpdate('Update downloaded — restart to install.', 'ok');
+      inst.hidden = false;
+      break;
+    case 'error':
+      setStatusUpdate('Update check failed: ' + (u.message || 'unknown error'), 'err');
+      break;
+    default:
+      break;
+  }
+}
+
+function bindUpdateChip() {
+  $('#update-chip').addEventListener('click', () => {
+    const u = state.updateState;
+    if (u.type === 'downloaded') {
+      api.updateInstall().catch(() => {});
+    } else {
+      nav('settings');
+    }
+  });
+  if (api.onUpdateEvent) api.onUpdateEvent(applyUpdateState);
+  if (api.updateState) {
+    api.updateState().then((u) => {
+      if (u && u.type && u.type !== 'idle') applyUpdateState(u);
+    }).catch(() => {});
+  }
+}
+
+// ---------- job runner ----------
 const timers = {};
 
 function startTimer(view) {
@@ -228,7 +510,7 @@ async function runJob(view, fn) {
   if (grid) grid.innerHTML = '';
   if (prog) {
     prog.hidden = false;
-    setStage(view, 'Contacting OpenAI…');
+    setStage(view, 'Contacting provider…');
     startTimer(view);
   }
   try {
@@ -313,17 +595,22 @@ function bindCreate() {
   $('#create-go').addEventListener('click', async () => {
     const prompt = ta.value.trim();
     if (!prompt) return toast('Write a prompt first.', 'warn');
-    if (!state.settings || !state.settings.hasKey) {
-      toast('Add your OpenAI API key in Settings first.', 'warn');
+    const info = (state.settings && state.settings.providers && state.settings.providers[state.provider]) || {};
+    if (!info.hasKey) {
+      toast('Add your ' + meta().label + ' API key in Settings first.', 'warn');
       nav('settings');
       return;
     }
+    const m = meta();
+    const q = $('#create-quality').value;
     const params = {
       prompt,
-      size: $('#create-size').value,
-      quality: $('#create-quality').value,
+      model: modelFor(),
+      aspect: $('#create-size').value,
+      quality: m.resolutions ? null : q,
+      imageSize: m.resolutions ? q : null,
       n: Number($('#create-n').value),
-      background: $('#create-bg').value,
+      background: m.background ? $('#create-bg').value : 'auto',
     };
     await runJob('create', () => api.generate(params));
   });
@@ -386,10 +673,22 @@ function setTool(t) {
   $('#tool-erase').classList.toggle('active', t === 'erase');
 }
 
+function updateMaskNote() {
+  const note = $('#mask-note');
+  const googleMask = meta().type === 'google' && editCtx.strokes > 0;
+  if (googleMask) {
+    note.textContent = 'Gemini has no mask input — your painted area will be covered with a magenta marker and replaced according to your prompt.';
+    note.hidden = false;
+  } else {
+    note.hidden = true;
+  }
+}
+
 function clearMask() {
   const mask = $('#edit-mask');
   maskCtx().clearRect(0, 0, mask.width, mask.height);
   editCtx.strokes = 0;
+  updateMaskNote();
 }
 
 function setEditImage(r) {
@@ -404,6 +703,7 @@ function setEditImage(r) {
     editCtx.strokes = 0;
     $('#edit-start').hidden = true;
     $('#edit-grid').hidden = false;
+    updateMaskNote();
   };
   img.src = r.dataUrl;
 }
@@ -425,9 +725,25 @@ async function loadEditFromPath(p) {
   }
 }
 
+function opaqueStrokes(maskCanvas) {
+  const c = document.createElement('canvas');
+  c.width = maskCanvas.width;
+  c.height = maskCanvas.height;
+  const x = c.getContext('2d');
+  x.drawImage(maskCanvas, 0, 0);
+  const im = x.getImageData(0, 0, c.width, c.height);
+  const d = im.data;
+  for (let i = 3; i < d.length; i += 4) {
+    if (d[i] > 12) d[i] = 255;
+  }
+  x.putImageData(im, 0, 0);
+  return c;
+}
+
 function exportMask() {
   if (!editCtx.strokes) return null;
   const mask = $('#edit-mask');
+  const op = opaqueStrokes(mask);
   const off = document.createElement('canvas');
   off.width = mask.width;
   off.height = mask.height;
@@ -435,8 +751,33 @@ function exportMask() {
   c.fillStyle = '#000000';
   c.fillRect(0, 0, off.width, off.height);
   c.globalCompositeOperation = 'destination-out';
-  c.drawImage(mask, 0, 0);
+  c.drawImage(op, 0, 0);
   return off.toDataURL('image/png');
+}
+
+// magenta-cover composite for providers without mask support (Google Gemini)
+function buildCoveredImage() {
+  const base = $('#edit-img');
+  if (!base || !base.naturalWidth) return null;
+  const mask = $('#edit-mask');
+  const op = opaqueStrokes(mask);
+
+  const cover = document.createElement('canvas');
+  cover.width = base.naturalWidth;
+  cover.height = base.naturalHeight;
+  const cx = cover.getContext('2d');
+  cx.fillStyle = '#ff00ff';
+  cx.fillRect(0, 0, cover.width, cover.height);
+  cx.globalCompositeOperation = 'destination-out';
+  cx.drawImage(op, 0, 0);
+
+  const out = document.createElement('canvas');
+  out.width = base.naturalWidth;
+  out.height = base.naturalHeight;
+  const ox = out.getContext('2d');
+  ox.drawImage(base, 0, 0);
+  ox.drawImage(cover, 0, 0);
+  return out.toDataURL('image/png');
 }
 
 function bindEdit() {
@@ -468,7 +809,8 @@ function bindEdit() {
       }[kind];
       if (!P) return;
       $('#edit-prompt').value = P.prompt;
-      $('#edit-bg').value = P.bg;
+      const bgSel = $('#edit-bg');
+      if (bgSel && meta().background) bgSel.value = P.bg;
       if (kind === 'bg') clearMask();
     })
   );
@@ -484,6 +826,7 @@ function bindEdit() {
     editCtx.last = p;
     if (editCtx.tool === 'brush') editCtx.strokes++;
     drawDot(p);
+    updateMaskNote();
   });
   mask.addEventListener('pointermove', (e) => {
     if (!editCtx.down) return;
@@ -502,19 +845,44 @@ function bindEdit() {
     const prompt = $('#edit-prompt').value.trim();
     if (!editCtx.srcPath) return toast('Choose an image first.', 'warn');
     if (!prompt) return toast('Describe what should change.', 'warn');
-    if (!state.settings || !state.settings.hasKey) {
-      toast('Add your OpenAI API key in Settings first.', 'warn');
+    const info = (state.settings && state.settings.providers && state.settings.providers[state.provider]) || {};
+    if (!info.hasKey) {
+      toast('Add your ' + meta().label + ' API key in Settings first.', 'warn');
       nav('settings');
       return;
     }
+
+    const m = meta();
+    const q = $('#edit-quality').value;
+    let imagePath = editCtx.srcPath;
+    let maskDataUrl = exportMask();
+    let promptFinal = prompt;
+
+    if (m.type === 'google' && maskDataUrl) {
+      const covered = buildCoveredImage();
+      if (covered) {
+        try {
+          imagePath = await api.writeTempPng(covered);
+        } catch (e) {
+          return toast(e.message, 'error');
+        }
+        maskDataUrl = null;
+        promptFinal =
+          'Replace the solid magenta-covered area with the following change, keeping everything outside the magenta area unchanged: ' +
+          prompt;
+      }
+    }
+
     const params = {
-      imagePaths: [editCtx.srcPath],
-      maskDataUrl: exportMask(),
-      prompt,
-      size: $('#edit-size').value,
-      quality: $('#edit-quality').value,
+      imagePaths: [imagePath],
+      maskDataUrl,
+      prompt: promptFinal,
+      model: modelFor(),
+      aspect: $('#edit-size').value,
+      quality: m.resolutions ? null : q,
+      imageSize: m.resolutions ? q : null,
       n: Number($('#edit-n').value),
-      background: $('#edit-bg').value,
+      background: m.background ? $('#edit-bg').value : 'auto',
     };
     await runJob('edit', () => api.editImage(params));
   });
@@ -561,16 +929,21 @@ function bindRestyle() {
     const prompt = $('#restyle-prompt').value.trim();
     if (!state.refs.length) return toast('Add at least one reference image.', 'warn');
     if (!prompt) return toast('Describe the result you want.', 'warn');
-    if (!state.settings || !state.settings.hasKey) {
-      toast('Add your OpenAI API key in Settings first.', 'warn');
+    const info = (state.settings && state.settings.providers && state.settings.providers[state.provider]) || {};
+    if (!info.hasKey) {
+      toast('Add your ' + meta().label + ' API key in Settings first.', 'warn');
       nav('settings');
       return;
     }
+    const m = meta();
+    const q = $('#restyle-quality').value;
     const params = {
       imagePaths: state.refs.map((r) => r.path),
       prompt,
-      size: $('#restyle-size').value,
-      quality: $('#restyle-quality').value,
+      model: modelFor(),
+      aspect: $('#restyle-size').value,
+      quality: m.resolutions ? null : q,
+      imageSize: m.resolutions ? q : null,
       n: Number($('#restyle-n').value),
     };
     await runJob('restyle', () => api.editImage(params));
@@ -598,7 +971,7 @@ function galleryCard(item) {
   d.innerHTML =
     '<img src="' + item.thumb + '" alt="" loading="lazy" />' +
     '<div class="g-meta"><div class="p">' + esc(item.prompt || 'Image') + '</div>' +
-    '<div class="d">' + esc(fmtDate(item.createdAt)) + ' · ' + esc(item.kind || '') + '</div></div>';
+    '<div class="d">' + esc(fmtDate(item.createdAt)) + ' · ' + esc(item.provider || '') + '</div></div>';
   d.addEventListener('click', () => openModal(item));
   return d;
 }
@@ -620,9 +993,9 @@ function openModal(item) {
   $('#modal-img').src = item.thumb;
   const bits = [
     fmtDate(item.createdAt),
+    item.provider || item.model,
     item.model,
-    item.size,
-    'quality: ' + (item.quality || '—'),
+    item.aspect || item.size,
     item.kind === 'edit' ? 'AI edit' : 'generate',
   ].filter(Boolean);
   $('#modal-meta').textContent = bits.join(' · ');
@@ -682,7 +1055,7 @@ function bindModal() {
 
 // ---------- mock api (plain-browser preview only; the real app uses window.sun) ----------
 function createMockApi() {
-  const fake = (kind, prompt, size, quality) =>
+  const fake = (kind, prompt, aspect, extra) =>
     new Promise((resolve) => {
       setTimeout(() => {
         const c = document.createElement('canvas');
@@ -703,25 +1076,40 @@ function createMockApi() {
         g.fillText(prompt.slice(0, 44), 256, 290);
         const id = 'mock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         resolve([
-          { id, thumb: c.toDataURL('image/png'), path: null, prompt, kind, model: 'mock', size, quality, createdAt: Date.now() },
+          {
+            id,
+            thumb: c.toDataURL('image/png'),
+            path: null,
+            prompt,
+            kind,
+            provider: state.provider,
+            model: modelFor(),
+            aspect,
+            createdAt: Date.now(),
+          },
         ]);
       }, 1800);
     });
 
   return {
+    getInfo: async () => ({ version: '0.0.2', electron: 'mock', platform: 'browser', encryption: 'none', packaged: false }),
     getSettings: async () => ({
-      settings: { model: 'gpt-image-1', size: '1024x1024', quality: 'medium', outputDir: '', autoSave: false },
-      hasKey: false,
-      encrypted: false,
-      hint: '',
+      provider: 'openai',
+      settings: { models: { openai: 'gpt-image-1', aipass: 'gpt-image-1', google: 'gemini-nano-banana-2.1' }, size: '1:1', quality: 'medium', imageSize: '1K', outputDir: '', autoSave: false, checkUpdates: true },
+      providers: {
+        openai: { hasKey: false, encrypted: false, hint: '' },
+        aipass: { hasKey: false, encrypted: false, hint: '' },
+        google: { hasKey: false, encrypted: false, hint: '' },
+      },
     }),
-    setApiKey: async (k) => ({ settings: {}, hasKey: !!k, encrypted: false, hint: k ? k.slice(0, 6) + '…' : '' }),
-    updateSettings: async () => ({}),
+    setApiKey: async (id, k) => state.settings,
+    updateSettings: async (p) => state.settings,
     testKey: async () => {
       throw new Error('Run the desktop app to test a real key.');
     },
-    generate: ({ prompt, size, quality }) => fake('generate', prompt, size, quality),
-    editImage: ({ prompt, size, quality }) => fake('edit', prompt, size, quality),
+    providerModels: async () => ['gpt-image-1', 'dall-e-3', 'flux-pro'],
+    generate: ({ prompt, aspect }) => fake('generate', prompt, aspect),
+    editImage: ({ prompt, aspect }) => fake('edit', prompt, aspect),
     pickImage: () =>
       new Promise((resolve) => {
         const inp = document.createElement('input');
@@ -737,6 +1125,7 @@ function createMockApi() {
         inp.click();
       }),
     readImage: async () => null,
+    writeTempPng: async () => 'browser-file',
     galleryList: async () => [],
     galleryDelete: async () => {},
     gallerySaveAs: async () => {
@@ -752,8 +1141,13 @@ function createMockApi() {
       a.click();
       return name;
     },
+    updateCheck: async () => ({ started: false, error: 'dev' }),
+    updateDownload: async () => ({ started: false }),
+    updateInstall: async () => {},
+    updateState: async () => ({ type: 'idle' }),
     onStage: null,
     onMenuNav: null,
+    onUpdateEvent: null,
   };
 }
 
@@ -765,6 +1159,14 @@ function createMockApi() {
   bindSettings();
   bindGalleryBar();
   bindModal();
+  bindUpdateChip();
+  try {
+    state.info = await api.getInfo();
+    $('#ver-num').textContent = 'v' + state.info.version;
+  } catch (e) { /* keep static label */ }
   await refreshSettings();
+  renderProviderPill();
+  renderProviderCards();
+  populateAllViewOptions();
   fillSettings();
 })();

@@ -5,8 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 const { Store } = require('./store');
-const { OpenAIClient } = require('./openai');
+const { OpenAICompatibleClient } = require('./openai');
+const { GoogleClient } = require('./google');
+const { PROVIDERS, providerMeta } = require('./providers');
 const { Gallery } = require('./gallery');
+const updater = require('./updater');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -14,11 +17,32 @@ if (!app.requestSingleInstanceLock()) {
 
 const store = new Store();
 const gallery = new Gallery();
-const openai = new OpenAIClient({ getApiKey: () => store.getApiKey() });
 
 let win = null;
 
 const tmpDir = () => path.join(app.getPath('userData'), 'tmp');
+
+// ---------- provider clients ----------
+const clients = {};
+
+function getClient(providerId) {
+  if (clients[providerId]) return clients[providerId];
+  const meta = providerMeta(providerId);
+  if (!meta) throw new Error('Unknown provider: ' + providerId);
+  if (meta.type === 'google') {
+    clients[providerId] = new GoogleClient({ getApiKey: () => store.getApiKey(providerId) });
+  } else {
+    clients[providerId] = new OpenAICompatibleClient({ providerMeta: meta, getApiKey: () => store.getApiKey(providerId) });
+  }
+  return clients[providerId];
+}
+
+function requireKey(providerId) {
+  if (!store.getApiKey(providerId)) {
+    const meta = providerMeta(providerId);
+    throw new Error(`No ${meta ? meta.label : providerId} API key configured. Add it in Settings first.`);
+  }
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -26,7 +50,7 @@ function createWindow() {
     height: 920,
     minWidth: 1060,
     minHeight: 680,
-    backgroundColor: '#0d0a06',
+    backgroundColor: '#0b0805',
     show: false,
     title: 'Sun Studio',
     icon: app.isPackaged ? undefined : path.join(__dirname, '..', '..', 'build', 'icon.png'),
@@ -84,6 +108,16 @@ function buildMenu() {
       label: 'Help',
       submenu: [
         {
+          label: 'Check for Updates',
+          click: async () => {
+            if (!app.isPackaged) {
+              dialog.showMessageBox(win, { type: 'info', title: 'Updates', message: 'Updates are only available in the installed app.' });
+              return;
+            }
+            await updater.checkForUpdates();
+          },
+        },
+        {
           label: 'About Sun Studio',
           click: () =>
             dialog.showMessageBox(win, {
@@ -91,8 +125,8 @@ function buildMenu() {
               title: 'About Sun Studio',
               message: `Sun Studio v${app.getVersion()}`,
               detail:
-                'AI image studio — generate, edit and restyle images with your own OpenAI account.\n\n' +
-                'Your API key is stored encrypted on this device and is only ever sent directly to api.openai.com.',
+                'AI image studio — generate, edit and restyle images with your own accounts\n(OpenAI, AI Pass, Google Gemini).\n\n' +
+                'Your API keys are stored encrypted on this device and are only ever sent directly to the selected provider.',
             }),
         },
       ],
@@ -131,25 +165,30 @@ async function convertToPng(srcPath) {
   };
 }
 
-async function autoSaveCopies(items, buffers) {
-  if (!store.data.autoSave || !store.data.outputDir) return;
-  try {
-    await fsp.mkdir(store.data.outputDir, { recursive: true });
-  } catch (e) {
-    return;
+function toPngBuffer(b64) {
+  const buf = Buffer.from(String(b64), 'base64');
+  const img = nativeImage.createFromBuffer(buf);
+  if (img.isEmpty()) throw new Error('Received invalid image data from the provider.');
+  return img.toPNG();
+}
+
+async function saveResults(b64s, meta) {
+  const saved = [];
+  for (const b64 of b64s) {
+    const png = toPngBuffer(b64);
+    saved.push(await gallery.saveBuffer(png, meta));
   }
-  for (let i = 0; i < items.length; i++) {
+  if (store.data.settings.autoSave && store.data.settings.outputDir) {
     try {
-      const name = `SunStudio-${items[i].id}.png`;
-      if (buffers) {
-        await fsp.writeFile(path.join(store.data.outputDir, name), buffers[i]);
-      } else {
-        await fsp.copyFile(items[i].path, path.join(store.data.outputDir, name));
+      await fsp.mkdir(store.data.settings.outputDir, { recursive: true });
+      for (const it of saved) {
+        await fsp.copyFile(it.path, path.join(store.data.settings.outputDir, `SunStudio-${it.id}.png`));
       }
     } catch (e) {
-      /* keep going */
+      /* best effort */
     }
   }
+  return saved;
 }
 
 function registerIpc() {
@@ -158,12 +197,22 @@ function registerIpc() {
     electron: process.versions.electron,
     platform: process.platform,
     encryption: store.encryptionAvailable() ? 'DPAPI' : 'plain',
+    packaged: app.isPackaged,
   }));
 
   handle('settings:get', () => store.snapshot());
-  handle('settings:setApiKey', (key) => store.setApiKey(String(key || '')));
+  handle('settings:setApiKey', ({ provider, key }) => store.setApiKey(provider || store.data.provider, String(key || '')));
   handle('settings:update', (partial) => store.update(partial || {}));
-  handle('key:test', () => openai.testKey());
+  handle('key:test', (providerId) => {
+    requireKey(providerId || store.data.provider);
+    return getClient(providerId || store.data.provider).testKey();
+  });
+  handle('provider:models', (providerId) => {
+    const meta = providerMeta(providerId);
+    if (!meta) throw new Error('Unknown provider.');
+    if (meta.dynamicModels) return getClient(providerId).listModels();
+    return meta.models.map((m) => m.id);
+  });
 
   const stage = (text) => {
     if (win && !win.isDestroyed()) win.webContents.send('op:stage', { text });
@@ -172,77 +221,104 @@ function registerIpc() {
   handle('gen:image', async (p) => {
     const prompt = String((p && p.prompt) || '').trim();
     if (!prompt) throw new Error('Prompt is empty.');
-    if (!store.getApiKey()) throw new Error('No API key configured. Add your OpenAI key in Settings first.');
-    stage('Sending your prompt to OpenAI…');
-    const b64s = await openai.generate({
-      prompt,
-      model: p.model || store.data.model,
-      size: p.size || store.data.size,
-      quality: p.quality || store.data.quality,
-      n: p.n,
-      background: p.background,
-    });
-    stage('Downloading results…');
-    const saved = [];
-    const bufs = [];
-    for (const b64 of b64s) {
-      const buf = Buffer.from(b64, 'base64');
-      bufs.push(buf);
-      saved.push(
-        await gallery.saveBuffer(buf, {
-          kind: 'generate',
-          prompt,
-          model: p.model || store.data.model,
-          size: p.size || store.data.size,
-          quality: p.quality || store.data.quality,
-        })
-      );
+    const providerId = store.data.provider;
+    requireKey(providerId);
+    const meta = providerMeta(providerId);
+    const model = (p.model || store.data.settings.models[providerId] || meta.defaultModel).trim();
+
+    stage(`Contacting ${meta.label}…`);
+    let b64s;
+    if (meta.type === 'google') {
+      b64s = await getClient(providerId).generate({
+        prompt,
+        model,
+        aspect: p.aspect,
+        imageSize: p.imageSize,
+        n: p.n,
+      });
+    } else {
+      b64s = await getClient(providerId).generate({
+        prompt,
+        model,
+        aspect: p.aspect,
+        quality: p.quality,
+        n: p.n,
+        background: p.background,
+      });
     }
-    stage('');
-    await autoSaveCopies(saved, bufs);
-    return saved;
+    stage('Saving results…');
+    return saveResults(b64s, {
+      kind: 'generate',
+      provider: providerId,
+      prompt,
+      model,
+      aspect: p.aspect,
+      quality: meta.type === 'google' ? p.imageSize : p.quality,
+    });
   });
 
   handle('image:edit', async (p) => {
     const prompt = String((p && p.prompt) || '').trim();
     if (!prompt) throw new Error('Prompt is empty.');
-    if (!store.getApiKey()) throw new Error('No API key configured. Add your OpenAI key in Settings first.');
     const paths = Array.isArray(p.imagePaths) ? p.imagePaths.filter(Boolean) : [];
     if (!paths.length) throw new Error('No image selected.');
+    const providerId = store.data.provider;
+    requireKey(providerId);
+    const meta = providerMeta(providerId);
+    const model = (p.model || store.data.settings.models[providerId] || meta.defaultModel).trim();
+
+    stage(paths.length > 1 ? 'Uploading reference images…' : 'Uploading your image…');
+    const metaOut = {
+      kind: 'edit',
+      provider: providerId,
+      prompt,
+      model,
+      aspect: p.aspect,
+      quality: meta.type === 'google' ? p.imageSize : p.quality,
+      source: path.basename(paths[0]),
+    };
+
+    if (meta.type === 'google') {
+      const imageBuffers = [];
+      for (const pth of paths) {
+        const buf = await fsp.readFile(pth);
+        imageBuffers.push({ mime: 'image/png', data: buf.toString('base64') });
+      }
+      // mask compositing for Google happens in the renderer (magenta cover) —
+      // only the resulting image + prompt are sent here.
+      const count = Math.min(4, Math.max(1, Number(p.n) || 1));
+      const b64s = [];
+      for (let i = 0; i < count; i++) {
+        const one = await getClient(providerId).edit({
+          imageBuffers,
+          prompt,
+          model,
+          aspect: p.aspect,
+          imageSize: p.imageSize,
+        });
+        b64s.push(...one);
+      }
+      stage('Saving results…');
+      return saveResults(b64s, metaOut);
+    }
+
     let maskPng = null;
     if (p.maskDataUrl) {
       const m = /^data:image\/png;base64,(.+)$/.exec(p.maskDataUrl);
       if (m) maskPng = Buffer.from(m[1], 'base64');
     }
-    stage(paths.length > 1 ? 'Uploading reference images…' : 'Uploading your image…');
-    const b64s = await openai.edit({
+    const b64s = await getClient(providerId).edit({
       imagePaths: paths,
       maskPng,
       prompt,
-      model: p.model || store.data.model,
-      size: p.size || store.data.size,
-      quality: p.quality || store.data.quality,
+      model,
+      aspect: p.aspect,
+      quality: p.quality,
       n: p.n,
       background: p.background,
     });
-    stage('Downloading results…');
-    const saved = [];
-    for (const b64 of b64s) {
-      const buf = Buffer.from(b64, 'base64');
-      saved.push(
-        await gallery.saveBuffer(buf, {
-          kind: 'edit',
-          prompt,
-          model: p.model || store.data.model,
-          size: p.size || store.data.size,
-          quality: p.quality || store.data.quality,
-          source: path.basename(paths[0]),
-        })
-      );
-    }
-    stage('');
-    await autoSaveCopies(saved, null);
-    return saved;
+    stage('Saving results…');
+    return saveResults(b64s, metaOut);
   });
 
   handle('file:pickImage', async () => {
@@ -256,6 +332,15 @@ function registerIpc() {
   });
 
   handle('file:readImage', (p) => convertToPng(String(p || '')));
+
+  handle('file:writeTempPng', async ({ dataUrl }) => {
+    const m = /^data:image\/png;base64,(.+)$/.exec(String(dataUrl || ''));
+    if (!m) throw new Error('Bad image data.');
+    const out = path.join(tmpDir(), 'cover-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '.png');
+    await fsp.mkdir(tmpDir(), { recursive: true });
+    await fsp.writeFile(out, Buffer.from(m[1], 'base64'));
+    return out;
+  });
 
   handle('gallery:list', () => gallery.list());
   handle('gallery:delete', (id) => gallery.remove(id));
@@ -296,6 +381,14 @@ function registerIpc() {
     await fsp.writeFile(r.filePath, Buffer.from(m[1], 'base64'));
     return r.filePath;
   });
+
+  // ---------- updater ----------
+  handle('update:state', () => updater.getState());
+  handle('update:check', () => (app.isPackaged ? updater.checkForUpdates() : { started: false, error: 'dev' }));
+  handle('update:download', () => (app.isPackaged ? updater.downloadUpdate() : { started: false, error: 'dev' }));
+  handle('update:install', () => {
+    if (app.isPackaged) updater.installUpdate();
+  });
 }
 
 app.on('second-instance', () => {
@@ -321,6 +414,17 @@ app.whenReady().then(async () => {
   await store.initEncryption();
   await store.load();
   createWindow();
+
+  if (app.isPackaged) {
+    updater.initUpdater({
+      onEvent: (ev) => {
+        if (win && !win.isDestroyed()) win.webContents.send('update:event', ev);
+      },
+    });
+    if (store.data.settings.checkUpdates) {
+      setTimeout(() => updater.checkForUpdates(), 6000);
+    }
+  }
 
   // automated smoke-test hook (used by CI / dev verification)
   if (process.env.SUN_SMOKE === '1') {

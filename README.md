@@ -1,30 +1,42 @@
 # Sun Studio
 
-**AI image studio for Windows.** Generate, edit and restyle images with state-of-the-art OpenAI image models — through your own API key. Sun Studio ships with no AI inside; it connects to OpenAI through the official API, so you always use your own account, your own limits and your own data.
+**AI image studio for Windows.** Generate, edit and restyle images with the best image models — through your own keys. Sun Studio ships with no AI inside; it connects directly to each provider's official API, so you always use your own account, your own limits and your own data.
+
+## Providers (v0.0.2)
+
+| Provider | Type | Key | Image models |
+|---|---|---|---|
+| **OpenAI** | Direct API | `sk-…` from platform.openai.com | gpt-image-1, gpt-image-1-mini |
+| **AI Pass** | OpenAI-compatible wallet (`https://aipass.one/v1`) | `sk-aikey-…` from the Developer Dashboard | gpt-image-1, dall-e-3 and more (model list is fetched live from the proxy) |
+| **Google Gemini** | Gemini API | `AIza…` from aistudio.google.com/apikey | Nano Banana 2.1, Flash Lite Image, Flash Image, Nano Banana Pro (1K/2K/4K) |
+
+Switch providers any time from the pill at the top of the window — each provider keeps its own encrypted key and its own default model. Aspect ratio, quality/resolution and background options adapt automatically to what the active provider supports.
 
 ## Features
 
 | | |
 |---|---|
-| **Create** | Text-to-image with aspect ratio, quality, image count and transparent-background support (gpt-image-1). |
-| **Edit** | Paint a mask over any area and describe the change — inpainting, object removal, background removal and quick presets. |
+| **Create** | Text-to-image with aspect ratio, quality/resolution, image count and transparent-background support (where available). |
+| **Edit** | Paint a mask over any area and describe the change — inpainting, object removal, background removal and quick presets. For Google (no mask input) the painted area is sent as a magenta cover and replaced per your prompt. |
 | **Image to Image** | Feed up to 3 reference images and describe the new look — style transfer, outfits, scenes. |
-| **Gallery** | Every result is saved locally with its prompt, model and settings. Save as, open, delete or reuse a prompt in one click. |
-| **Settings** | Bring your own OpenAI key. It is encrypted with Windows DPAPI and never leaves your device except to call `api.openai.com` directly. |
+| **Gallery** | Every result is saved locally with its prompt, provider, model and settings. Save as, open, delete or reuse a prompt in one click. |
+| **Updates** | Built-in updater (electron-updater): checks GitHub releases at startup, downloads in-app with a progress bar and installs via the standard wizard. Check manually from **Settings → Updates**. |
+| **Settings** | Bring your own keys. Each key is encrypted with Windows DPAPI and never leaves your device except to call the selected provider directly. |
 
 ## Getting started
 
 ### 1. Download the installer
 
-Grab `SunStudio-Setup-x.y.z.exe` from the [Releases](https://github.com/rexteamiran/Sun-Studio/releases) page, or build it yourself (below). The installer lets you pick the install folder, creates a desktop shortcut and offers to launch the app right away.
+Grab `SunStudio-Setup-x.y.z.exe` from the [Releases](https://github.com/rexteamiran/Sun-Studio/releases) page, or build it yourself (below). The installer lets you pick the install folder, creates a desktop shortcut and offers to launch the app right away. Installed apps update themselves from this releases page.
 
-### 2. Add your OpenAI API key
+### 2. Add a provider key
 
-1. Create a key at https://platform.openai.com/api-keys
-2. Open **Sun Studio → Settings**, paste the key, press **Save key**
-3. Press **Test connection** — you should see *Connection successful*
+1. Pick a provider in the top bar (OpenAI, AI Pass or Google Gemini)
+2. Open **Settings**, paste the key under **Providers**, press **Save**
+3. Press **Test** — you should see *Connection successful*
+4. Press **Use provider** (or just keep it active from step 1)
 
-> Image generation is billed by OpenAI to **your** account. As a rule of thumb, one medium-quality 1024×1024 image costs a few cents — check current pricing on the OpenAI pricing page.
+> Image generation is billed by the provider to **your** account — check current pricing on the provider's pricing page.
 
 ### 3. Create something
 
@@ -40,22 +52,22 @@ npm start        # run the app in dev mode
 npm run dist     # build the Windows NSIS installer into dist/
 ```
 
-The installer is configured in `electron-builder.yml` (assisted NSIS wizard, license page, custom sidebar art, desktop + start menu shortcuts).
+The installer is configured in `electron-builder.yml` (assisted NSIS wizard, license page, custom sidebar art, desktop + start menu shortcuts, GitHub publish metadata for the in-app updater).
 
 ## Building from CI
 
-Pushing a tag like `v0.0.2` triggers the GitHub Actions workflow in `.github/workflows/build.yml`, which builds the installer on `windows-latest`, uploads it as a workflow artifact and attaches it to a GitHub release.
+Pushing a tag like `v0.0.3` triggers the GitHub Actions workflow in `.github/workflows/build.yml`, which builds the installer on `windows-latest` and attaches the setup EXE, `latest.yml` and `.blockmap` to a GitHub release — exactly the files the in-app updater needs for automatic updates.
 
 ## Privacy & security
 
-- The API key is stored encrypted on this device (Windows DPAPI via Electron `safeStorage`) and is only decrypted in the main process to sign requests to `api.openai.com`.
-- Prompts and images are sent **directly** from your machine to OpenAI. Sun Studio runs no server and collects no telemetry.
+- API keys are stored encrypted on this device (Windows DPAPI via Electron `safeStorage`) and are only decrypted in the main process to sign requests to the selected provider (`api.openai.com`, `aipass.one` or `generativelanguage.googleapis.com`).
+- Prompts and images are sent **directly** from your machine to the active provider. Sun Studio runs no server and collects no telemetry.
 - Generated images and history live in `%APPDATA%/Sun Studio/` on your disk.
 
 ## Roadmap
 
-- v0.0.2 — more providers (Stability, Google Imagen) behind the same UI, batch folders export
-- v0.1 — brush-size memory, prompt library, drag & drop from Explorer, auto-update channel
+- v0.0.3 — more providers behind the same UI (Stability, fal.ai), batch export, prompt library
+- v0.1 — drag & drop from Explorer, per-project galleries, auto-update channel with prereleases
 
 ## License
 

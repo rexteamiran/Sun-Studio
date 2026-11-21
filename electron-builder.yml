@@ -6,6 +6,12 @@ directories:
   output: dist
   buildResources: build
 
+publish:
+  provider: github
+  owner: rexteamiran
+  repo: Sun-Studio
+  releaseType: release
+
 files:
   - src/**/*
 
