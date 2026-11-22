@@ -131,3 +131,5 @@ verify the release has `exe + latest.yml + .blockmap`, download the installer in
   (`win:min/max/close`); don't re-introduce a native menu.
 - The sandbox recycles between messages: processes die, files persist. Never rely on a running
   Xvfb/electron from a previous message; re-start them.
+
+
