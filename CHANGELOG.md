@@ -14,9 +14,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/) — versions foll
   which quit within 1.5 s). The wrapper now normalizes both shapes; covered by a new mocked-module
   test suite (`npm run test:updater`, 10 checks). Note: `resources/app-update.yml` was always
   baked correctly (publish config lives in `electron-builder.yml`) — the feed was never the
-  problem. Installers built between the first v0.0.12 attempt (tag re-cut) are identical to
-  v0.0.11 in structure; **v0.0.10/v0.0.11 installs update themselves to v0.0.12 automatically**
-  (autoDownload + install-on-quit run inside electron-updater, independent of the UI).
+  problem. Because the throw happens on the very first event, the check → download pipeline died
+  before anything ran: **v0.0.10/v0.0.11 installs cannot self-update — install v0.0.12 manually
+  once**; from v0.0.12 on, the background auto-update (download + install on quit) works.
 
 ### Added
 - **Manual escape hatch**: Settings → Updates shows the real error text plus an
