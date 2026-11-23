@@ -47,3 +47,8 @@ routine stays boring.
   `data/secrets.env` (0600, env-name references, URL-hash names for custom endpoints) and never
   cross into the browser; server binds 127.0.0.1 only; release = standalone web zip (no installer,
   no updater); UI redesigned monochrome (`mono` default + `midnight`) with a new B/W logomark.
+- 2026-11-23 — v0.0.8: user feedback reversed the v0.0.7 packaging call — the deliverable is the
+  **Windows NSIS installer** again. The v0.0.7 studio ships unchanged inside a minimal Electron 45
+  shell (server child process + window + electron-updater); same appId/productName as v0.0.6 so
+  the old updater upgrades in place; one-shot v3→v4 data migration keeps keys/settings/gallery
+  (legacy files untouched); releases carry exe + latest.yml + blockmap again.

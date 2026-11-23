@@ -4,6 +4,33 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.8] — 2026-11-23
+
+### Changed
+- **Windows installer is back** — the v0.0.7 web zip was not what users wanted. The same
+  Next.js 16 + React 18 studio (kept intact from v0.0.7) now ships inside a minimal **Electron
+  45 shell**: the shell boots the Next standalone server as a child process on `127.0.0.1`
+  (picks a free port), opens a window on it, and packages as a familiar assisted NSIS installer
+  (`SunStudio-Setup-0.0.8.exe`, license page, install-dir picker, shortcuts, runs after setup).
+
+### Added
+- **v0.0.6 → v0.0.8 data migration** so existing installs keep everything: the old
+  `settings.json` (v3, DPAPI-encrypted keys) is migrated on first launch into the Hermes-style
+  layout (`data/settings.json` v4 without keys + `data/secrets.env` 0600) — provider, models,
+  size/quality/resolution, theme, custom endpoints and **all keys** (encrypted ones are
+  decrypted in the main process, with plain fallback); the v0.0.6 gallery images + metadata are
+  carried over (thumbs are dropped, the new UI doesn't need them). Legacy files stay untouched;
+  migration is idempotent.
+- **Auto-update path restored** — electron-updater is back with the GitHub Releases feed
+  (`latest.yml` + `blockmap` on every release). Installed v0.0.6 apps see v0.0.8 in
+  **Settings → Updates** and upgrade in place; new installs self-update in the background and
+  offer a restart dialog when a build is ready.
+
+### Kept
+- The whole v0.0.7 studio: monochrome open-design-style UI with black-and-white default theme,
+  Hermes-style API connection (env-named secrets, doctor-style test), all four providers +
+  custom endpoints, mask painting with the magenta-cover trick, local gallery.
+
 ## [0.0.7] — 2026-11-23
 
 ### Changed — breaking

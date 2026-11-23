@@ -1,10 +1,10 @@
 # Product spec — Sun Studio
 
-A local web studio with **no AI inside**: the user brings their own provider key (OpenAI, AI
+An AI image studio for Windows with **no AI inside**: the user brings their own provider key (OpenAI, AI
 Pass, kie.ai, Google Gemini) and every request goes from the local server (`127.0.0.1`) directly
 to the provider. This spec is the behavioral reference; implementation details live in
-`docs/ARCHITECTURE.md`. (v0.0.7: the product is a browser UI over a localhost server instead of
-a Windows desktop app — the views and behaviors below are unchanged.)
+`docs/ARCHITECTURE.md`. (v0.0.8: the v0.0.7 studio UI ships inside an Electron shell — the views
+and behaviors below are unchanged.)
 
 ## Non-goals
 

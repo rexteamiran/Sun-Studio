@@ -1,0 +1,47 @@
+appId: com.rexteamiran.sunstudio
+productName: Sun Studio
+copyright: Copyright © 2026 Rex Team
+
+directories:
+  output: dist
+  buildResources: build
+
+publish:
+  provider: github
+  owner: rexteamiran
+  repo: Sun-Studio
+  releaseType: release
+
+# The Next.js standalone server must be readable by a plain node child process,
+# so the app ships unpacked (no asar).
+asar: false
+compression: normal
+
+files:
+  - electron/**/*
+  - server/**/*
+  - package.json
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  license: build/license.rtf
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeader: build/installerHeader.bmp
+  installerSidebar: build/installerSidebar.bmp
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Sun Studio
+  artifactName: SunStudio-Setup-${version}.${ext}
+  uninstallDisplayName: Sun Studio
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true

@@ -1,18 +1,18 @@
 # Sun Studio
 
-**A local web studio for AI image generation.** Generate, edit and restyle images with the best image models — through **your own keys**. Sun Studio ships with no AI inside: it connects directly to each provider's official API from a small server on your machine, so you always use your own account, your own limits and your own data.
+**An AI image studio for Windows.** Generate, edit and restyle images with the best image models — through **your own keys**. Sun Studio ships with no AI inside: it connects directly to each provider's official API from a small server on your machine, so you always use your own account, your own limits and your own data.
 
-> v0.0.7 note — Sun Studio was a Windows (Electron) app until v0.0.6. It is now a **Next.js 16 + React 18 local web app** (same stack as the open-design workspace): you run it on `127.0.0.1`, open it in any browser, and the UI talks to a tiny local server that holds your keys and talks to the providers. Electron is gone entirely.
+> v0.0.8 note — the studio UI is the **Next.js 16 + React 18** app introduced in v0.0.7 (the open-design stack, monochrome black-and-white design, Hermes-style API connection). It now ships again inside a minimal **Electron shell** as a familiar Windows installer, with a one-time migration that carries over every setting, key and gallery image from v0.0.6 — and installed v0.0.6 apps update to v0.0.8 through their built-in updater.
 
 ## Documentation
 
 | File | What's inside |
 |---|---|
 | [AGENTS.md](AGENTS.md) | Operating playbook for agent/dev sessions: rules, session checklist, smoke tests, pitfalls, security |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, HTTP API map, settings + secrets schema |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers (Electron shell → HTTP API → studio), migration, settings + secrets schema |
 | [docs/PROVIDERS.md](docs/PROVIDERS.md) | Provider layer, request shapes, mask semantics, how to add a provider |
-| [docs/RELEASE.md](docs/RELEASE.md) | Tag-driven release routine (versions, CI, release assets, rollback) |
-| [docs/BUILD.md](docs/BUILD.md) | Dev setup, commands, CI walkthrough |
+| [docs/RELEASE.md](docs/RELEASE.md) | Tag-driven release routine (versions, CI, updater assets, rollback) |
+| [docs/BUILD.md](docs/BUILD.md) | Dev setup, commands, installer packaging, CI walkthrough |
 | [docs/SPEC.md](docs/SPEC.md) | Product spec: views, behaviors, provider-adaptive matrix, privacy |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Planned releases and decision log |
 | [CHANGELOG.md](CHANGELOG.md) | What shipped in every version |
@@ -46,17 +46,11 @@ Switch providers any time from the pill in the top bar. Aspect ratio, quality/re
 
 ## Getting started
 
-### 1. Run the app
+### 1. Install
 
-Requires **Node.js 20.9+**.
+Download `SunStudio-Setup-0.0.8.exe` from the [latest release](https://github.com/rexteamiran/Sun-Studio/releases/latest) and run it — assisted setup with a license page, an install-dir picker and shortcuts. Nothing else is required (the studio server ships inside).
 
-```bash
-unzip SunStudio-Web-v0.0.7.zip && cd SunStudio-Web-v0.0.7
-./start-web.sh            # Windows: start-web.bat
-# → open http://127.0.0.1:3570
-```
-
-Or from source: `npm ci && npm run build && npm start`.
+Already on **v0.0.6**? Just open the installed app → **Settings → Updates → Check for updates** — v0.0.8 installs over it and your keys, models, settings and gallery are migrated automatically on first launch.
 
 ### 2. Add a provider key
 
@@ -77,25 +71,28 @@ Type a prompt in **Create** and hit **Generate**. Results appear in seconds-to-m
 
 ```bash
 npm ci
-npm run dev            # http://127.0.0.1:3570 (hot reload)
-npm run test:clients   # provider client integration tests (local mock, no network)
-npm run build && npm start
+npm run dev             # studio in a browser: http://127.0.0.1:3570 (hot reload)
+npm run test:clients    # provider client integration tests (local mock, no network)
+node scripts/test-migration.cjs   # v0.0.6 data migration unit tests
+npm run dist            # full Windows installer: next build → assemble server/ → NSIS exe
 ```
+
+`npm run dist` chains `npm run build` + `scripts/prepare-electron.mjs` (copies the Next standalone server into `server/`) + electron-builder NSIS. For a quick packaged-app check without the installer, run the shell directly: `npm run build && npm run prepare:electron && electron .`
 
 ## Building from CI
 
-Pushing a tag like `v0.0.7` triggers `.github/workflows/build.yml`, which builds the Next.js standalone bundle on `ubuntu-latest` and attaches `SunStudio-Web-vX.Y.Z.zip` to a GitHub release.
+Pushing a tag like `v0.0.8` triggers `.github/workflows/build.yml` (windows-latest): Next build → assemble Electron payload → electron-builder NSIS → release assets `SunStudio-Setup-X.Y.Z.exe` + `latest.yml` + `.blockmap` (the last two are what the in-app updater reads).
 
 ## Privacy & security
 
-- API keys are written to `data/secrets.env` (mode **0600**) on this machine and are read **only inside the local server** to sign requests to the selected provider (`api.openai.com`, `aipass.one`, `api.kie.ai` or `generativelanguage.googleapis.com`). They never reach the browser, settings.json or any log.
+- API keys are written to `data/secrets.env` (mode **0600**, inside the app's user-data folder) and are read **only inside the local server** to sign requests to the selected provider (`api.openai.com`, `aipass.one`, `api.kie.ai` or `generativelanguage.googleapis.com`). They never reach the UI, `settings.json` or any log.
 - The server binds to **127.0.0.1** only. Prompts and images are sent **directly** to the active provider. No accounts, no telemetry.
-- Generated images and history live in `data/` next to the server (override with `SUN_STUDIO_DATA`).
+- Generated images and history live in the app's `data/` folder (`%APPDATA%/Sun Studio/data`; override with `SUN_STUDIO_DATA`).
 
 ## Roadmap
 
-- v0.0.8 — live task progress streaming (SSE) for kie.ai, batch export, prompt library
-- v0.1 — Docker image, HTTPS/localhost auth token, per-project galleries
+- v0.0.9 — live task progress streaming (SSE) for kie.ai, batch export, prompt library
+- v0.1 — per-project galleries, optional portable build
 
 ## License
 

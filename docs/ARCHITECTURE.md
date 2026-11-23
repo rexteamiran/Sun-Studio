@@ -1,35 +1,52 @@
 # Architecture
 
-A local web app in three layers: a React UI in the browser, Next.js route handlers as the only
-door to the server layer, and the provider clients that talk to the outside world. The browser
-never sees a key; the server never serves a page it doesn't own. (As of v0.0.7 the Electron shell
-is gone — this replaced the old renderer/preload/main-process bridge with plain HTTP.)
+Since v0.0.8 the product ships as a **minimal Electron shell around the Next.js studio** (that
+was the v0.0.7 web app, unchanged). The UI is a React client, Next.js route handlers are the only
+door to the server layer, and the provider clients talk to the outside world. The UI never sees a
+key; the server never serves a page it doesn't own.
 
 ```
-┌────────────────────────── components/*.tsx (client) ──────────────────────────┐
-│ Studio.tsx (state, tabs, pill, toasts)                                        │
-│   CreateView · EditView (mask canvas) · GalleryView · SettingsView            │
-│   theme: app/globals.css [data-theme] — mono (default), midnight, 6 accents   │
-└──────────────────────────────┬────────────────────────────────────────────────┘
-                               │ fetch → /api/* (the only door)
+┌──────────────────── electron/ (shell — CommonJS, no build step) ───────────────┐
+│ main.cjs     free-port picker → spawns server/ via ELECTRON_RUN_AS_NODE,       │
+│              waits for /api/bootstrap, opens BrowserWindow on 127.0.0.1:<port> │
+│ migrate.cjs  one-shot v0.0.6 → v0.0.8 data migration (see below)               │
+│ updater.cjs  electron-updater: GitHub Releases feed, auto-download,            │
+│              install-on-quit + "Restart now?" dialog                            │
+└──────────────────────────────┬─────────────────────────────────────────────────┘
 ┌──────────────────────────────┴────────────────────────────────────────────────┐
-│ app/api/*/route.ts — bootstrap · settings · keys · test · custom-providers ·  │
-│                      generate · edit · gallery · gallery/file/[id]            │
-└──────────────────────────────┬────────────────────────────────────────────────┘
-┌──────────────────────────────┴────────────────────────────────────────────────┐
-│ src/server/                                                                    │
-│   service.ts     store + gallery singletons, dataURL parsing, quality mapping │
-│   clients.ts     client factory (cached per provider)                          │
-│   store.ts       data/settings.json — non-secret settings, provider registry   │
-│   secrets.ts     data/secrets.env — SUN_KEY_* (0600, re-read live, Hermes style)│
-│   gallery.ts     data/gallery/ + index.json (PNG/JPEG/WebP sniffing)           │
-│   providers/     registry.ts · openai.ts · google.ts · kie.ts · types.ts      │
-└───────────────────────────────────────────────────────────────────────────────┘
+│ server/ (Next.js standalone, assembled by scripts/prepare-electron.mjs)        │
+│  ┌ components/*.tsx (client) ────────────────────────────────────────────────┐ │
+│  │ Studio.tsx (state, tabs, pill, toasts)                                    │ │
+│  │   CreateView · EditView (mask canvas) · GalleryView · SettingsView        │ │
+│  │   theme: app/globals.css [data-theme] — mono (default), midnight, 6      │ │
+│  └──────────────────────────────┬────────────────────────────────────────────┘ │
+│  │ fetch → /api/* (the only door)                                              │
+│  │ app/api/*/route.ts — bootstrap · settings · keys · test · custom-providers │
+│  │                      · generate · edit · gallery · gallery/file/[id]        │
+│  │ src/server/ — service.ts · clients.ts · store.ts · secrets.ts · gallery.ts │
+│  │               providers/ (registry · openai · google · kie · types)        │
+└────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Security boundaries: the server binds `127.0.0.1` (`start-web.sh/.bat`, `npm start`, `npm run dev`).
-Keys are read only inside `secrets.ts`/`store.ts` and used server-side to sign requests. The API
-returns key presence + a short hint (`sk-moc…3456`) and the env reference name — never the value.
+Security boundaries: the server binds `127.0.0.1` and the sandboxed window (contextIsolation +
+nodeIntegration:false) is just a browser pointed at it. Keys are read only inside
+`secrets.ts`/`store.ts` and used server-side to sign requests. The API returns key presence + a
+short hint (`sk-moc…3456`) and the env reference name — never the value.
+
+## v0.0.6 → v0.0.8 migration (first launch)
+
+`electron/migrate.cjs` runs before the server starts, against the **same userData dir**
+(`%APPDATA%/Sun Studio` — same appId/productName, so the NSIS over-install keeps it):
+
+| legacy (v0.0.6) | → | new (v0.0.8) |
+|---|---|---|
+| `settings.json` v3 `{version, provider, apiKeys:{id:{enc,plain}}, customProviders:[{id,label,baseUrl,models}], settings}` | → | `data/settings.json` v4 (no keys) — provider, per-provider models, size/quality/imageSize, theme (unknown → `mono`), custom providers get `keyEnv` = `SUN_KEY_CUSTOM_<sha256-8hex of URL>` |
+| DPAPI-encrypted keys (`apiKeys[*].enc`) | → | decrypted **in the main process** (same OS user, same safeStorage) → `data/secrets.env` 0600; decrypt failure/empty falls back to the legacy `plain` value |
+| `gallery/` files + `index.json` (with data-URL thumbs) | → | files copied to `data/gallery/`, index rebuilt `{id, file, ext, createdAt, …meta}` without thumbs |
+
+Idempotent (skips if `data/settings.json` already exists), legacy files stay untouched, and the
+server reads the new layout via `SUN_STUDIO_DATA=<userData>/data`. Unit-tested in
+`scripts/test-migration.cjs`.
 
 ## Generation data flow (Create)
 
@@ -98,7 +115,9 @@ SUN_KEY_GOOGLE=AIza…
 SUN_KEY_CUSTOM_CD24289F=sk-…      # 8-hex sha256 of the lowercased base URL
 ```
 
-Override the data folder with `SUN_STUDIO_DATA`; the port with `PORT` (default 3570).
+The data folder is `%APPDATA%/Sun Studio/data` (the Electron shell passes it via
+`SUN_STUDIO_DATA`; the env var also overrides it manually). The port is picked by the shell
+(3570 preferred) and passed via `PORT`.
 
 ## Themes
 
