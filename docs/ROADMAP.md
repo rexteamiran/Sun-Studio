@@ -4,20 +4,18 @@ Living document — when you ship a milestone, move leftovers here and note deci
 `CHANGELOG.md`. Keep scope per release small (one theme + fixes) so the tag-driven release
 routine stays boring.
 
-## v0.0.7 — next candidates
+## v0.0.8 — next candidates
+- Live task progress for kie.ai (SSE stream of poll states) — v0.0.7 kept the simple
+  request/response shape; the client already accepts `onStage`.
+- Batch export from Gallery (zip download) and prompt library (save/favorite locally).
 - More providers on the same layer (Stability AI, fal.ai, OpenRouter) — see
-  `docs/PROVIDERS.md` § "Adding a provider"; each is one registry entry + client + mirror.
-- Batch export from Gallery (zip or folder pick).
-- Prompt library (save/favorite prompts locally, insert into Create).
-- UI language toggle (English / فارسی) — strings currently live inline in `index.html`/`app.js`;
-  factor them into a small dictionary first.
+  `docs/PROVIDERS.md` § "Adding a provider".
+- Docker image + optional localhost auth token for shared machines.
 
 ## v0.1 — bigger moves
-- Drag & drop images from Explorer into Edit / Image to Image.
+- Drag & drop images from Explorer into Edit / Restyle.
 - Per-project galleries (subfolders + switcher).
-- Prerelease update channel (`allowPrerelease` + `vX.Y.Z-beta` tags).
-- Signed installer (EV/OV certificate) to kill SmartScreen warnings.
-- Portable build in the release alongside the setup exe (script exists: `npm run dist:portable`).
+- Desktop shell again (Tauri) around the same Next.js UI, if a native feel is ever needed.
 
 ## Backlog ideas
 - Local gallery search/filter (prompt, provider, date).
@@ -44,3 +42,8 @@ routine stays boring.
 - 2026-11-21 — v0.0.6: kie.ai added as the first job-based (async) provider — `src/main/kie.js`
   polls `recordInfo` and normalizes nine documented models into the existing UI (per-family
   input recipes + credit balance in `testKey`); masked Edit reuses the magenta-cover trick.
+- 2026-11-23 — v0.0.7: migrated to a local web app — Next.js 16.2.6 + React 18.3.1 + Tailwind 4
+  (the exact nexu-io/open-design versions), Electron removed; keys moved to a Hermes-style
+  `data/secrets.env` (0600, env-name references, URL-hash names for custom endpoints) and never
+  cross into the browser; server binds 127.0.0.1 only; release = standalone web zip (no installer,
+  no updater); UI redesigned monochrome (`mono` default + `midnight`) with a new B/W logomark.

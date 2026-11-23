@@ -1,10 +1,10 @@
 # Providers
 
-How the provider layer works and how to add a provider. The registry lives in
-`src/main/providers.js`; its renderer mirror is `PROVIDERS_META` in `src/renderer/app.js` —
-**always change both together**.
+How the provider layer works and how to add a provider. The single registry lives in
+`src/server/providers/registry.ts` (since v0.0.7 there is no second mirror — the UI receives
+everything from `/api/bootstrap`, so **change only the registry**).
 
-## Current providers (v0.0.2)
+## Current providers (v0.0.7)
 
 | id | type | base URL | key | models | notes |
 |---|---|---|---|---|---|
@@ -54,38 +54,44 @@ via `GET {baseUrl}/models`, DPAPI-encrypted key, `Test` button, usable as the ac
 
 ## Client contract
 
-Every client returns **base64 image strings** (any container format); `main.js saveResults()`
-normalizes to PNG via `nativeImage`. Failures throw `OpenAIError(message, status)`; network-layer
-issues go through `friendlyNetworkError()` (timeout / ENOTFOUND / ECONNREFUSED → friendly text).
-Responses may deliver images inline (`b64_json`) **or as URLs** — `itemToB64()` in `openai.js`
-downloads URL-based results (common with proxies and dall-e-3 defaults); a 200-response carrying
-`{error:{message}}` is surfaced as an error, and empty results name the model and point to
-Settings → Default model.
+Every client returns **base64 image strings** (any container format); `gallery.saveBuffer()`
+sniffs the format (PNG/JPEG/WebP) and stores it under `data/gallery/`. Failures throw
+`ProviderError(message, status)`; network-layer issues go through `friendlyNetworkError()`
+(timeout / ENOTFOUND / ECONNREFUSED → friendly text). Responses may deliver images inline
+(`b64_json`) **or as URLs** — `itemToB64()` in `openai.ts` downloads URL-based results (common
+with proxies and dall-e-3 defaults); a 200-response carrying `{error:{message}}` is surfaced as
+an error, and empty results name the model and point to Settings → Default model.
 
-```js
-// openai-compatible (src/main/openai.js — one class serves OpenAI and AI Pass)
+```ts
+// openai-compatible (src/server/providers/openai.ts — serves OpenAI, AI Pass and custom endpoints)
 testKey()                                  // GET {baseUrl}/models → {ok, models, ids}
 listModels()                               // sorted id list (dynamicModels)
 generate({ prompt, model, aspect, quality, n, background })   // POST /images/generations
-edit({ imagePaths[], maskPng, prompt, model, aspect, quality, n, background })
+edit({ images: [{mime, data}], maskPng, prompt, model, aspect, quality, n, background })
                                            // POST /images/edits (multipart, mask optional)
 
-// google (src/main/google.js)
+// google (src/server/providers/google.ts)
 testKey()                                  // GET /v1beta/models (x-goog-api-key)
 generate({ prompt, model, aspect, imageSize, n })             // sequential calls, one image each
 edit({ imageBuffers: [{mime, data}], prompt, model, aspect, imageSize })
 
-// kie.ai (src/main/kie.js — job-based)
+// kie.ai (src/server/providers/kie.ts — job-based)
 testKey()                                  // GET /api/v1/chat/credit → {ok, credits}
 generate({ prompt, model, aspect, imageSize, n, onStage })    // createTask ×n (parallel) → poll → download
 edit({ imageBuffers: [{mime, data}], prompt, model, aspect, imageSize, n, onStage })
                                            // uploads each buffer via /api/file-base64-upload first
 ```
 
-Routing in `main.js`: `getClient(providerId)` caches one client per provider and injects
-`getApiKey: () => store.getApiKey(providerId)`. `requireKey()` guards every request with a
-friendly "No <label> API key configured" error. Model resolution:
-`p.model || settings.models[provider] || meta.defaultModel`.
+All clients share the `ImageClient` interface (`src/server/providers/types.ts`) and take
+`{ providerMeta, getApiKey }` (Google takes `{ getApiKey, baseUrl? }` so tests can point it at a
+mock). Keys come from `store.getApiKey(providerId)` — a **fresh read of `data/secrets.env`**
+(Hermes pattern: the value never sits in memory longer than the request, and a newly saved key
+applies without restart).
+
+Routing in `src/server/clients.ts`: `getClient(providerId, store, meta)` caches one client per
+provider. Routes (`app/api/generate|edit`) guard every request with a friendly
+"No <label> API key configured" error. Model resolution:
+`body.model || settings.models[provider] || meta.defaultModel`.
 
 Error mapping (`openai.js _check` / `google.js _check`): 401 → invalid key,
 402 → "Out of funds", 403 → access denied, 429 → rate limit / quota; provider JSON
@@ -129,22 +135,24 @@ POST /v1beta/models/{model}:generateContent
 
 | provider | mask handling |
 |---|---|
-| OpenAI-compatible | renderer `exportMask()` sends a **binary** PNG (opaque black = keep, transparent = repaint) as the `mask` field; strokes are thresholded by `opaqueStrokes()` first |
-| google, kie | no mask input — renderer `buildCoveredImage()` composites solid `#ff00ff` over painted areas, `file:writeTempPng` saves it, prompt is prefixed with *"Replace the solid magenta-covered area with the following change…"* |
+| OpenAI-compatible | browser `EditView` exports a **binary** PNG (opaque black = keep, transparent = repaint) as the `mask` field; strokes are thresholded before export |
+| google, kie | no mask input — browser `buildCoveredImage()` composites solid `#ff00ff` over painted areas; the covered image is sent to the server, prompt is prefixed with *"Replace the solid magenta-covered area with the following change…"* |
 
 ## Adding a provider — checklist
 
-1. **Registry**: add the entry in `src/main/providers.js` (fields above).
+1. **Registry**: add the entry in `src/server/providers/registry.ts` (fields above). Every entry
+   carries its Hermes-style `keyEnv` secret reference.
 2. **Client**: if `openai-compatible` — done, the shared client covers it. Otherwise write
-   `src/main/<name>.js` implementing the client contract, export it, and branch on the new `type`
-   in `getClient()` (`main.js`) and in the `gen:image` / `image:edit` handlers.
-3. **Renderer mirror**: add the same entry to `PROVIDERS_META` (`app.js`) with user-facing labels.
-   The provider pill, Settings cards and per-view selects are generated from this — no other UI
-   edits needed. If its model list is dynamic, set `dynamicModels` and make sure the provider's
-   `testKey()` returns `{ ok, models, ids }` so `state.dynamicModels` fills the model dropdown.
-4. **Special params**: size mapping (`providers.js` / client), dall-e-3-style overrides, mask
-   support decision (`docs/ARCHITECTURE.md` → Edit flow), background support flag.
+   `src/server/providers/<name>.ts` implementing the `ImageClient` contract, export it, and
+   branch on the new `type` in `getClient()` (`src/server/clients.ts`) and in the
+   `generate` / `edit` routes.
+3. **UI**: nothing else — the pill, Settings cards and per-view selects are generated from
+   `/api/bootstrap`. If its model list is dynamic, set `dynamicModels` and make sure `testKey()`
+   returns `{ ok, models, ids }`.
+4. **Special params**: size mapping (client), dall-e-3-style overrides, mask support decision
+   (`docs/ARCHITECTURE.md` → Edit flow), background support flag.
 5. **Docs**: add a row to the table above and the README providers table; add a CHANGELOG entry.
-6. **Test**: `node --check` every touched file; smoke-test all five views (`AGENTS.md`); if the
-   provider API shape is documented, hand-verify the request builder against the docs.
+6. **Test**: `npx tsc --noEmit`, extend `scripts/test-clients.ts` with a mock-server test for the
+   request shape, smoke-test all five views (`AGENTS.md`); if the provider API shape is
+   documented, hand-verify the request builder against the docs.
 7. **Release**: patch version bump + release per `docs/RELEASE.md`.

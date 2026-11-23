@@ -4,6 +4,41 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.7] — 2026-11-23
+
+### Changed — breaking
+- **Electron is gone; Sun Studio is now a local web app** built on the same stack as the
+  nexu-io/open-design workspace: **Next.js 16.2.6 + React 18.3.1 + Tailwind CSS 4** in
+  TypeScript. You run a small server on `127.0.0.1:3570` (binds localhost only) and use the
+  studio in any browser. There is no installer and no in-app updater anymore — the release is a
+  self-contained `SunStudio-Web-vX.Y.Z.zip` (`start-web.bat` / `start-web.sh` → `node server.js`).
+
+### Added
+- **Hermes-style API connection** (pattern from NousResearch/hermes-agent): API keys live in a
+  dedicated `data/secrets.env` (mode 0600) referenced by env names (`SUN_KEY_KIE`,
+  `SUN_KEY_GOOGLE`, …) — never inside `settings.json` and never in the browser; custom endpoints
+  get a URL-hash env name (`SUN_KEY_CUSTOM_<8-hex>`), and secrets are re-read live so saving a key
+  applies without a restart. The Settings → API connection panel shows endpoint, secret reference
+  and a doctor-style **Test** verdict line (including your kie.ai credit balance).
+- **Monochrome redesign** inspired by open-design: new black-and-white `Mono` default theme
+  (hairline borders, uppercase micro-labels, mono-font values) plus `Midnight` and the six
+  previous accent themes; new black-and-white logomark (inline SVG + favicon).
+- Live model list is folded into `/api/bootstrap`; the searchable model picker, per-provider
+  options (aspects, quality vs resolution, background) and promo cards all come from the server
+  registry — the old duplicated renderer mirror is gone.
+
+### Kept
+- All four built-in providers with their v0.0.6 behaviour (OpenAI Images API, AI Pass live
+  models, kie.ai async job pipeline with per-model recipes, Google Interactions + legacy
+  fallback), custom OpenAI-compatible endpoints, magenta-cover mask trick for providers without
+  mask input, local gallery with metadata.
+
+### Moved
+- Everything runs server-side now: provider clients, settings store, secrets and the gallery
+  live in `src/server/` (TypeScript); the UI calls `/api/*` route handlers. Client behaviour is
+  pinned by `npm run test:clients` (9 mock-server tests) and a full-flow e2e mock
+  (`scripts/e2e-mock-openai.js`).
+
 ## [0.0.6] — 2026-11-21
 
 ### Added

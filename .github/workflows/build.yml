@@ -1,4 +1,4 @@
-name: Build Windows Installer
+name: Build Web Release
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,35 +19,42 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build installer
-        run: npx electron-builder --win nsis --x64 --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Build (Next.js standalone)
+        run: npm run build
+
+      - name: Assemble standalone bundle
+        run: |
+          mkdir -p bundle/.next
+          cp -r .next/standalone/. bundle/
+          cp -r .next/static bundle/.next/static
+          cp -r public bundle/public
+          cp scripts/start-web.sh scripts/start-web.bat WEB.md bundle/
+          chmod +x bundle/start-web.sh
+          mkdir -p bundle/data
+
+      - name: Zip bundle
+        run: |
+          (cd bundle && zip -qr ../SunStudio-Web-${{ github.ref_name }}.zip .)
+          ls -la SunStudio-Web-*.zip
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SunStudio-Setup-${{ github.ref_name }}
-          path: |
-            dist/*.exe
-            dist/*.yml
-            dist/*.blockmap
+          name: SunStudio-Web-${{ github.ref_name }}
+          path: SunStudio-Web-*.zip
           if-no-files-found: error
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/*.exe
-            dist/*.yml
-            dist/*.blockmap
+          files: SunStudio-Web-*.zip
           draft: false
           prerelease: false
           generate_release_notes: true

@@ -1,8 +1,10 @@
 # Product spec — Sun Studio
 
-An AI image studio for Windows with **no AI inside**: the user brings their own provider key
-(OpenAI, AI Pass, Google Gemini) and every request goes directly from the device to the provider.
-This spec is the behavioral reference; implementation details live in `docs/ARCHITECTURE.md`.
+A local web studio with **no AI inside**: the user brings their own provider key (OpenAI, AI
+Pass, kie.ai, Google Gemini) and every request goes from the local server (`127.0.0.1`) directly
+to the provider. This spec is the behavioral reference; implementation details live in
+`docs/ARCHITECTURE.md`. (v0.0.7: the product is a browser UI over a localhost server instead of
+a Windows desktop app — the views and behaviors below are unchanged.)
 
 ## Non-goals
 
@@ -50,19 +52,18 @@ This spec is the behavioral reference; implementation details live in `docs/ARCH
   The active provider card is highlighted with an *Active* badge.
 - **Default model** — dropdown for the active provider (static list or live-filtered
   image models via `IMAGE_MODEL_RE`).
-- **Storage** — optional output folder + auto-save toggle (results copied there as
-  `SunStudio-<id>.png` in addition to the Gallery).
-- **Updates** — current version, check / download / install controls with progress bar,
-  *check automatically at startup* toggle.
-- **About** — version, Electron version, repo link, one-line privacy statement.
+- **API connection** — one card per provider: endpoint, secret reference (`SUN_KEY_*`), key save,
+  doctor-style test line, default model (Hermes-style config/secrets separation).
+- **Appearance** — theme swatches (`mono` default, `midnight`, six accent themes).
+- **About** — version, data folder, one-line privacy statement.
 
 ### Global chrome
-- Top bar: provider pill (OpenAI · AI Pass · Google Gemini) with green dot per provider when a
-  key is saved; update chip appears on updater events (available → download % → install).
-- Sidebar: grouped nav (Studio: Create / Edit / Image to Image · Library: Gallery · App:
-  Settings), key status badge, version line. Collapses to icons under 900 px.
-- Banner above content when the active provider has no key: "Connect your X API key…" + *Add key*.
-- Toasts (info/ok/warn/error) for all async outcomes; errors are provider messages made friendly
+- Top bar: logo + `SUN STUDIO` wordmark, view tabs (Create / Edit / Restyle / Gallery /
+  Settings), provider pill with a green dot per provider when a key is saved.
+- Footer: "No AI inside — your keys, your providers" + version + `127.0.0.1 only`.
+- Banner/button state when the active provider has no key: generate buttons refuse with a
+  friendly pointer to Settings → API connection.
+- Toasts (info/ok/error) for all async outcomes; errors are provider messages made friendly
   (401 invalid key, 402 out of funds, 403 denied, 429 rate limit, timeout, network down).
 
 ## Provider-adaptive behavior (summary)
@@ -76,11 +77,18 @@ This spec is the behavioral reference; implementation details live in `docs/ARCH
 | multi-image (n) | one request, n images | sequential requests |
 | model list | AI Pass: live `GET /models`; OpenAI: static | static curated list |
 
+kie.ai follows the Google column for sizes/quality (aspects + `resolution` 1K/2K/4K, no
+background), uses per-model job recipes (see `docs/PROVIDERS.md`) and runs n images as parallel
+tasks; its model list is static and curated.
+
 ## Privacy & security requirements
 
-- Keys encrypted with DPAPI (`safeStorage`), decrypted only in the main process, never logged
-  or included in error surfaces.
-- Outbound calls only to: `api.openai.com`, `aipass.one`, `generativelanguage.googleapis.com`.
-- Gallery and settings under the user profile (`%APPDATA%/Sun Studio/`); deleting an image in
-  the app deletes its files.
-- Renderer sandboxed; the only privileged API surface is `window.sun` (`src/preload/preload.js`).
+- Keys live in `data/secrets.env` (mode 0600), referenced by env names; decrypted/used only
+  inside the local server, never logged, never sent to the browser, never included in error
+  surfaces (only a `first6…last4` hint).
+- Outbound calls only to: `api.openai.com`, `aipass.one`, `api.kie.ai`,
+  `generativelanguage.googleapis.com`.
+- Gallery and settings under `data/` next to the server (`SUN_STUDIO_DATA` overrides); deleting
+  an image in the app deletes its files.
+- The server binds to `127.0.0.1` only; the browser's only privileged surface is the `/api/*`
+  route handlers, which never return secret values.

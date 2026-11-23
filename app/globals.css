@@ -1,0 +1,230 @@
+@import "tailwindcss";
+
+/*
+ * Sun Studio themes — CSS variables, mono (black & white) is the default.
+ * The palette language follows open-design: hairline borders, generous white
+ * space, uppercase micro-labels and mono values. Coloured themes swap the
+ * accent while keeping the same neutral structure.
+ */
+:root,
+[data-theme="mono"] {
+  --bg: #ffffff;
+  --panel: #fafafa;
+  --ink: #0a0a0a;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --btn: #0a0a0a;
+  --btn-fg: #ffffff;
+  --btn-hover: #262626;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+[data-theme="midnight"] {
+  --bg: #0a0a0a;
+  --panel: #141414;
+  --ink: #fafafa;
+  --muted: #a3a3a3;
+  --line: #262626;
+  --btn: #fafafa;
+  --btn-fg: #0a0a0a;
+  --btn-hover: #d4d4d4;
+  --danger: #ef4444;
+  --ok: #22c55e;
+}
+[data-theme="sunset"] {
+  --bg: #fffdf9;
+  --panel: #fff8ef;
+  --ink: #1c1917;
+  --muted: #78716c;
+  --line: #f0e4d3;
+  --btn: #ea580c;
+  --btn-fg: #ffffff;
+  --btn-hover: #c2410c;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+[data-theme="ember"] {
+  --bg: #fffcfc;
+  --panel: #fdf3f3;
+  --ink: #1c1917;
+  --muted: #78716c;
+  --line: #f3dcdc;
+  --btn: #b91c1c;
+  --btn-fg: #ffffff;
+  --btn-hover: #991b1b;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+[data-theme="ocean"] {
+  --bg: #fcfeff;
+  --panel: #f0f7fb;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #d8e6ef;
+  --btn: #0369a1;
+  --btn-fg: #ffffff;
+  --btn-hover: #075985;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+[data-theme="forest"] {
+  --bg: #fcfefb;
+  --panel: #f1faf2;
+  --ink: #0f1a12;
+  --muted: #5f7265;
+  --line: #d8ecdb;
+  --btn: #15803d;
+  --btn-fg: #ffffff;
+  --btn-hover: #166534;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+[data-theme="violet"] {
+  --bg: #fdfcff;
+  --panel: #f6f2fc;
+  --ink: #17131f;
+  --muted: #6d6a78;
+  --line: #e6ddf3;
+  --btn: #6d28d9;
+  --btn-fg: #ffffff;
+  --btn-hover: #5b21b6;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+[data-theme="paper"] {
+  --bg: #faf7f0;
+  --panel: #f4f0e6;
+  --ink: #292524;
+  --muted: #7d7568;
+  --line: #e5ddc9;
+  --btn: #44403c;
+  --btn-fg: #ffffff;
+  --btn-hover: #292524;
+  --danger: #b91c1c;
+  --ok: #3f6212;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+}
+
+/* shared primitives */
+.mono-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.mono-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.field {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+.field:focus {
+  border-color: var(--btn);
+  box-shadow: 0 0 0 1px var(--btn);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--btn);
+  color: var(--btn-fg);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--btn);
+}
+.btn:hover {
+  background: var(--btn-hover);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  border-color: var(--btn);
+}
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.tab {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 6px 2px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--btn);
+}
+.toast {
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  max-width: 420px;
+}
+.toast.error {
+  background: var(--danger);
+  color: #fff;
+}
+.toast.ok {
+  background: var(--ok);
+  color: #fff;
+}

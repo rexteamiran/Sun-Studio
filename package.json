@@ -1,26 +1,30 @@
 {
   "name": "sun-studio",
-  "productName": "Sun Studio",
-  "version": "0.0.6",
-  "description": "AI image studio for Windows — generate, edit and restyle images with your own OpenAI, AI Pass or Google Gemini key.",
-  "main": "src/main/main.js",
-  "author": "Rex Team",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/rexteamiran/Sun-Studio#readme",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/rexteamiran/Sun-Studio.git"
+  "version": "0.0.7",
+  "private": true,
+  "description": "Sun Studio — local web studio for AI image generation (BYOK). Bring your own key; nothing ships inside.",
+  "engines": {
+    "node": ">=20.9.0"
   },
   "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder --win nsis --x64",
-    "dist:portable": "electron-builder --win portable --x64"
-  },
-  "devDependencies": {
-    "electron": "45.4.1",
-    "electron-builder": "26.18.0"
+    "dev": "next dev -H 127.0.0.1 -p 3570",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1 -p 3570",
+    "serve": "node .next/standalone/server.js",
+    "test:clients": "tsx scripts/test-clients.ts"
   },
   "dependencies": {
-    "electron-updater": "^6.8.11"
+    "next": "16.2.6",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/node": "^22",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "tailwindcss": "^4.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5"
   }
 }
