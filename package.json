@@ -1,7 +1,7 @@
 {
   "name": "sun-studio",
   "productName": "Sun Studio",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "private": false,
   "description": "Sun Studio \u2014 AI image studio for Windows (Next.js 16 + React 18 studio in an Electron shell). Bring your own key; nothing ships inside.",
   "main": "electron/main.cjs",

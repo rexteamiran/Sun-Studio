@@ -21,14 +21,22 @@ import {
  *   - HTTP status is ALWAYS 200; the real result code lives in the body (`code`).
  *   - `input` field names differ per model family: nano-banana* uses `image_input`,
  *     seedream/grok use `image_urls`, gpt-image uses `input_urls`.
- *   - Local files must be uploaded first via POST /api/file-base64-upload (URLs expire
- *     in 24h) and passed as URLs.
+ *   - Local files must be uploaded first via the File Upload API (URLs expire in
+ *     24h) and passed as URLs. That service lives on its OWN base URL —
+ *     https://kieai.redpandaai.co (docs.kie.ai/file-upload-api/quickstart);
+ *     api.kie.ai does not host /api/file-base64-upload (404, reproduced).
+ *   - Every job model expects `input.aspect_ratio` (the createTask validation
+ *     rejects the request with "aspect_ratio is required" when it is missing —
+ *     seen in the field with legacy nano-banana and custom model ids). Only
+ *     grok-imagine/image-to-image takes none (sizes come from @image refs).
  *   - grok-imagine/image-to-image requires @image(n) references inside the prompt.
  *   - Model quality knobs differ: nano-banana* takes `resolution` (1K/2K/4K), seedream
  *     takes `quality` (basic/high), gpt-image takes `quality` (medium/high), grok none.
  */
 
 const KIE_BASE = "https://api.kie.ai";
+/** The File Upload API is a separate kie.ai service with its own base URL. */
+const KIE_UPLOAD_BASE = "https://kieai.redpandaai.co";
 
 /** Body-code -> friendly message (HTTP is always 200, so codes are read from the body). */
 function friendlyBodyError(code: number, msg?: string): string {
@@ -95,7 +103,13 @@ const MODEL_RECIPES: Record<string, Recipe> = {
     resolution: true,
     aspects: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
   },
-  "nano-banana": { kind: "nano", i2i: false },
+  "nano-banana": {
+    kind: "nano",
+    i2i: false,
+    // official nano-banana aspect enum (kie.ai model page); "auto" excluded —
+    // the app always picks an explicit ratio
+    aspects: ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+  },
   "seedream/5-pro-text-to-image": {
     kind: "seedream",
     i2i: false,
@@ -133,7 +147,15 @@ const MODEL_RECIPES: Record<string, Recipe> = {
 };
 
 function recipeFor(model: string): Recipe {
-  return MODEL_RECIPES[String(model)] || { kind: "nano", i2i: false };
+  return (
+    MODEL_RECIPES[String(model)] || {
+      // custom model ids: safest generic shape — jobs-style input with the
+      // common aspect enum (aspect_ratio is required by createTask validation)
+      kind: "nano",
+      i2i: false,
+      aspects: ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"],
+    }
+  );
 }
 
 async function fetchJson(url: string, options: RequestInit): Promise<Record<string, unknown>> {
@@ -143,8 +165,15 @@ async function fetchJson(url: string, options: RequestInit): Promise<Record<stri
     try {
       const t = await res.text();
       if (t && t.length <= 300) msg = t.trim();
+      // Spring-style error JSON ({"status":404,...}) — make it human-readable
+      const parsed = JSON.parse(msg) as { status?: number; error?: string; path?: string };
+      if (parsed && parsed.status && parsed.error) {
+        msg =
+          "HTTP " + parsed.status + " — " + parsed.error +
+          (parsed.path ? " (no such endpoint: " + parsed.path + ")" : "");
+      }
     } catch {
-      /* keep default */
+      /* keep the raw text */
     }
     throw new ProviderError(msg, res.status);
   }
@@ -161,6 +190,12 @@ async function fetchAsB64(url: string): Promise<string> {
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+function extFor(mime?: string): string {
+  const sub = String(mime || "image/png").split("/")[1] || "png";
+  const ext = sub.split("+")[0].replace(/[^a-z0-9]/gi, "");
+  return ext.length && ext.length <= 5 ? ext : "png";
+}
 
 export class KieClient implements ImageClient {
   meta: ProviderMeta;
@@ -200,7 +235,7 @@ export class KieClient implements ImageClient {
 
   /** Upload one local image (raw base64) and return a public URL the jobs API accepts. */
   async uploadImage(img: ImageInput): Promise<string> {
-    const j = await fetchJson(this.baseUrl + "/api/file-base64-upload", {
+    const j = await fetchJson(this._uploadBase() + "/api/file-base64-upload", {
       method: "POST",
       headers: this._authHeader(),
       body: JSON.stringify({
@@ -210,7 +245,7 @@ export class KieClient implements ImageClient {
           "sunstudio-" +
           Date.now().toString(36) +
           Math.random().toString(36).slice(2, 6) +
-          ".png",
+          "." + extFor(img.mime),
       }),
     });
     this._checkBody(j);
@@ -218,6 +253,14 @@ export class KieClient implements ImageClient {
     const url = data && data.downloadUrl;
     if (!url) throw new ProviderError("kie.ai did not return an upload URL.", 0);
     return url;
+  }
+
+  /** The File Upload API lives on its own base — api.kie.ai returns 404 there.
+   * A custom baseUrl (self-hosted proxy) keeps being used for uploads too. */
+  _uploadBase(): string {
+    return this.baseUrl === KIE_BASE || this.baseUrl.startsWith("https://api.kie.ai")
+      ? KIE_UPLOAD_BASE
+      : this.baseUrl;
   }
 
   async createTask(model: string, input: Record<string, unknown>): Promise<string> {
@@ -295,8 +338,10 @@ export class KieClient implements ImageClient {
         input.prompt = String(input.prompt) + " @image(1)";
       }
     }
-    if (r.aspects) {
-      const pick = r.aspects.includes(aspect || "") ? aspect : ASPECT_FALLBACK[aspect || ""] || "1:1";
+    // createTask validation requires aspect_ratio on every job model except
+    // grok image-to-image (aspects: null — output size follows the @image refs)
+    if (r.aspects !== null) {
+      const pick = r.aspects && r.aspects.includes(aspect || "") ? aspect : ASPECT_FALLBACK[aspect || ""] || "1:1";
       input.aspect_ratio = pick;
     }
     if (r.resolution && imageSize) input.resolution = imageSize;

@@ -105,6 +105,11 @@ curl -s "localhost:3570/api/gallery/file/<id>" -o /tmp/out.png   # → valid PNG
 - **kie.ai returns HTTP 200 for everything** — always check the body `code` (`KieClient._checkBody`).
 - **Input field names differ per kie.ai family**: `image_input` / `image_urls` / `input_urls` —
   never normalize them; the recipes in `kie.ts` are transcribed from docs.kie.ai.
+- **kie.ai File Upload API lives on its own base** — `https://kieai.redpandaai.co`
+  (`/api/file-base64-upload`); api.kie.ai 404s that path (v0.0.13). `KieClient._uploadBase()`
+  keeps a custom baseUrl (proxy) for uploads.
+- **kie.ai createTask validation requires `input.aspect_ratio`** on every job model except
+  `grok-imagine/image-to-image` — never ship an aspect-less recipe for a new model id (v0.0.13).
 - **React 18 is pinned** with Next 16 — do not "upgrade" React to 19 casually; the combo matches
   open-design and builds clean (npm may warn about peer ranges; harmless).
 - **Google client is test-aware**: pass `baseUrl` to point it at a mock; default stays the real API.

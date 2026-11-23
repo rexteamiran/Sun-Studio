@@ -293,6 +293,22 @@ async function main() {
     );
   });
 
+  await test("kie upload base: api.kie.ai redirects to the upload service, custom base kept", async () => {
+    const prod = new KieClient({ providerMeta: { ...kieMeta("https://api.kie.ai") }, getApiKey: key });
+    assert.strictEqual(prod._uploadBase(), "https://kieai.redpandaai.co");
+    const proxied = new KieClient({ providerMeta: { ...kieMeta(base) }, getApiKey: key });
+    assert.strictEqual(proxied._uploadBase(), base);
+  });
+
+  await test("kie legacy nano-banana + custom ids still send aspect_ratio (422 regression)", async () => {
+    const before = captured.filter((c) => c.name.startsWith("kie.createTask")).length;
+    await kie.generate({ prompt: "cat", model: "nano-banana", aspect: "16:9", imageSize: "1K", n: 1 });
+    await kie.generate({ prompt: "cat", model: "my-custom-model", aspect: "9:16", imageSize: "1K", n: 1 });
+    const tasks = captured.filter((c) => c.name.startsWith("kie.createTask")).slice(before);
+    assert.strictEqual((tasks[0].value as Record<string, unknown>).aspect_ratio, "16:9");
+    assert.strictEqual((tasks[1].value as Record<string, unknown>).aspect_ratio, "9:16");
+  });
+
   const openrouter = new OpenRouterClient({ baseUrl: base + "/api/v1", getApiKey: key });
   const stability = new StabilityClient({ baseUrl: base, getApiKey: key });
 

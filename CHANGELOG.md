@@ -4,6 +4,26 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.13] — 2026-11-23
+
+### Fixed
+- **kie.ai image editing failed with a raw Spring 404** (user report): the client uploaded local
+  files to `https://api.kie.ai/api/file-base64-upload`, but the File Upload API lives on its own
+  base URL — `https://kieai.redpandaai.co` (docs.kie.ai/file-upload-api/quickstart); api.kie.ai
+  returns 404 for that path on both `/api/…` and `/api/v1/…` (both reproduced). Uploads now go to
+  the documented upload service; a custom baseUrl (proxy) is still honored. File extensions in the
+  upload name now follow the image mime instead of always `.png`.
+- **kie.ai rejected generation with "aspect_ratio is required"** (user report): `input.aspect_ratio`
+  was only sent for models with a documented aspect enum — the legacy `nano-banana` entry and every
+  custom model id fell through to a recipe without one, and kie.ai's createTask validation rejects
+  those with a 422. `aspect_ratio` is now always sent (custom models get the common enum, a user
+  aspect outside a model's enum still maps to the closest supported one); the only opt-out remains
+  `grok-imagine/image-to-image`, whose output size follows the `@image(n)` prompt references.
+- Non-JSON upstream error bodies no longer reach the UI as raw JSON — Spring-style
+  `{"status":404,"error":…,"path":…}` responses are reformatted into a readable sentence.
+- Regression tests added for both fixes (`npm run test:clients` now 18 checks): upload-base
+  routing and aspect_ratio presence for legacy + custom model ids.
+
 ## [0.0.12] — 2026-11-23
 
 ### Fixed

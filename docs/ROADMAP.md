@@ -58,6 +58,12 @@ routine stays boring.
   (near-black + amber accent), v0.0.6 dark themes restored with refined palettes, mono→dark
   mapping in migration, empty-states + affordance polish across all views. The installer/updater
   path is untouched.
+- 2026-11-23 — v0.0.13: kie.ai field reports — (1) edit flow 404: the File Upload API lives on
+  https://kieai.redpandaai.co (its own base per docs.kie.ai/file-upload-api/quickstart), not
+  api.kie.ai (both /api and /api/v1 paths 404 there — reproduced by probe); (2) "aspect_ratio is
+  required" 422: legacy nano-banana + custom model ids fell through to an aspect-less recipe.
+  Uploads now target the upload service, aspect_ratio is always sent (opt-out stays grok i2i),
+  Spring-style error bodies are reformatted, +2 regression tests (clients suite at 18).
 - 2026-11-23 — v0.0.12: user report "the updater does not work" — root cause: `initUpdater`
   receives a `win` getter but called `.isDestroyed()` on it; the first updater event threw a
   TypeError that killed the check → download pipeline before any state reached the UI (the feed
