@@ -1,6 +1,8 @@
-/** electron-updater wrapper — GitHub Releases feed (same as v0.0.6). */
+/** electron-updater wrapper — GitHub Releases feed (latest.yml + blockmap).
+ * v0.0.10: the update state is exposed to the renderer (sidebar pill + Settings
+ * → Updates section) through IPC, so the app always shows a visible updater. */
 const { autoUpdater } = require('electron-updater');
-const { dialog } = require('electron');
+const { ipcMain } = require('electron');
 
 function initUpdater({ win }) {
   autoUpdater.autoDownload = true; // silent in background…
@@ -8,33 +10,48 @@ function initUpdater({ win }) {
   autoUpdater.allowPrerelease = false;
   autoUpdater.logger = console;
 
-  autoUpdater.on('update-downloaded', async (info) => {
-    try {
-      const w = win();
-      if (!w || w.isDestroyed()) return;
-      const r = await dialog.showMessageBox(w, {
-        type: 'info',
-        title: 'Update ready',
-        message: 'Sun Studio ' + (info && info.version ? info.version : '') + ' is ready to install.',
-        detail: 'It will be installed automatically when you close the app — or restart now.',
-        buttons: ['Restart now', 'Later'],
-        defaultId: 0,
-        cancelId: 1,
-      });
-      if (r.response === 0) autoUpdater.quitAndInstall();
-    } catch (e) {
-      /* dialog failed — install-on-quit still applies */
-    }
-  });
+  const state = {
+    status: 'idle', // idle | checking | downloading | ready | uptodate | error
+    version: null,
+    progress: null, // {percent, transferred, total, bytesPerSecond}
+    error: null,
+  };
 
-  autoUpdater.on('error', (e) => {
-    console.log('[updater]', e ? e.message || String(e) : 'update error');
-  });
+  const push = () => {
+    if (!win || win.isDestroyed()) return;
+    try {
+      win.webContents.send('update:state', JSON.parse(JSON.stringify(state)));
+    } catch (e) { /* window gone */ }
+  };
+
+  const setStatus = (patch) => {
+    Object.assign(state, patch);
+    push();
+  };
+
+  autoUpdater.on('checking-for-update', () =>
+    setStatus({ status: 'checking', error: null }));
+  autoUpdater.on('update-available', (i) =>
+    setStatus({ status: 'downloading', version: i && i.version ? i.version : null, error: null }));
+  autoUpdater.on('download-progress', (p) =>
+    setStatus({ progress: { percent: Math.round(p.percent), transferred: p.transferred, total: p.total, bytesPerSecond: p.BPS || p.bytesPerSecond } }));
+  autoUpdater.on('update-not-available', () =>
+    setStatus({ status: 'uptodate', version: null, progress: null }));
+  autoUpdater.on('update-downloaded', (i) =>
+    setStatus({ status: 'ready', version: i && i.version ? i.version : null, progress: null }));
+  autoUpdater.on('error', (e) =>
+    setStatus({ status: 'error', error: e ? e.message || String(e) : 'update error' }));
+
+  ipcMain.handle('update:check', () => autoUpdater.checkForUpdates().catch((e) => ({ message: e.message })));
+  ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
+  ipcMain.handle('update:state', () => state);
 
   // don't block startup on the network
   setTimeout(() => {
     autoUpdater.checkForUpdates().catch((e) => console.log('[updater] check failed:', e.message));
   }, 8000);
+
+  return { push };
 }
 
 module.exports = { initUpdater };

@@ -1,88 +1,83 @@
 #!/usr/bin/env python3
-"""Generate Sun Studio assets: app icon (.ico/.png) and NSIS installer art (BMPs) + license RTF."""
-import math
+"""Generate Sun Studio assets — strictly black & white (user directive).
+
+app icon (.ico/.png): the B/W line logomark (horizon + rising sun + three rays,
+mirrors components/Logo.tsx) as white ink on a solid black rounded tile.
+NSIS installer art: monochrome gradient panels, no color.
+"""
 import os
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 BUILD = os.path.join(ROOT, "build")
 os.makedirs(BUILD, exist_ok=True)
 
-DARK = (13, 10, 6)
-DARK2 = (34, 25, 13)
-CREAM = (255, 233, 176)
-GOLD = (255, 182, 72)
-ORANGE = (255, 125, 31)
-MUTED = (157, 140, 111)
+INK = (255, 255, 255)
+NEAR_BLACK = (13, 14, 13)   # --bg
+DEEP = (22, 24, 22)         # panel depth
+FAINT = (150, 155, 150)     # muted text on black
 
 FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 
-def lerp(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(len(a)))
+def line(d, s, x1, y1, x2, y2, w):
+    d.line([x1 * s, y1 * s, x2 * s, y2 * s], fill=INK, width=w)
+    r = w / 2
+    for (x, y) in ((x1, y1), (x2, y2)):
+        d.ellipse([x * s - r, y * s - r, x * s + r, y * s + r], fill=INK)
 
 
-def draw_sun(size):
-    """Draw the sun (rays + gradient core) on a transparent image, supersampled x4."""
-    s = 4
-    W = size * s
-    img = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+def draw_logomark(size, stroke=1.8):
+    """The Logo.tsx geometry: horizon, rising sun arc, three rays — white on transparent."""
+    V = 24.0
+    s = size / V
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    cx = cy = W // 2
-
-    # rays
-    for i in range(8):
-        ang = math.radians(i * 45)
-        x1 = cx + math.cos(ang) * W * 0.40
-        y1 = cy + math.sin(ang) * W * 0.40
-        x2 = cx + math.cos(ang) * W * 0.475
-        y2 = cy + math.sin(ang) * W * 0.475
-        d.line([(x1, y1), (x2, y2)], fill=GOLD + (255,), width=int(W * 0.058))
-
-    # gradient core
-    R = W * 0.30
-    steps = 72
-    for r_i in range(steps, 0, -1):
-        t = r_i / steps
-        col = lerp(CREAM, ORANGE, t)
-        d.ellipse([cx - R * t, cy - R * t, cx + R * t, cy + R * t], fill=col + (255,))
-
-    return img.resize((size, size), Image.LANCZOS)
+    w = max(2, round(stroke * s))
+    line(d, s, 2.5, 17.5, 21.5, 17.5, w)
+    cx, cy, r = 12 * s, 17.5 * s, 5.5 * s
+    d.arc([cx - r, cy - r, cx + r, cy + r], start=180, end=360, fill=INK, width=w)
+    line(d, s, 12, 2.5, 12, 5.5, w)
+    line(d, s, 4.6, 6.1, 6.7, 8.2, w)
+    line(d, s, 19.4, 6.1, 17.3, 8.2, w)
+    return img
 
 
 def make_icon():
     size = 512
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-
-    # rounded dark tile with subtle radial glow
+    # solid black rounded tile + a faint white horizon glow, B/W only
     tile = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     td = ImageDraw.Draw(tile)
-    td.rounded_rectangle([0, 0, size, size], radius=104, fill=(22, 17, 10, 255))
+    td.rounded_rectangle([0, 0, size, size], radius=104, fill=NEAR_BLACK + (255,))
     glow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    gd.ellipse([96, 76, size - 96, size - 156], fill=(255, 140, 26, 70))
-    glow = glow.filter(__import__("PIL.ImageFilter", fromlist=["GaussianBlur"]).GaussianBlur(60))
+    gd.ellipse([70, 90, size - 70, size - 60], fill=(255, 255, 255, 26))
+    glow = glow.filter(ImageFilter.GaussianBlur(70))
     tile = Image.alpha_composite(tile, glow)
 
-    img = Image.alpha_composite(img, tile)
-    sun = draw_sun(330)
-    img.alpha_composite(sun, ((size - 330) // 2, (size - 330) // 2 - 6))
+    mark = draw_logomark(340, stroke=1.9)
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    img.alpha_composite(tile)
+    img.alpha_composite(mark, ((size - 340) // 2, (size - 340) // 2))
 
     img.save(os.path.join(BUILD, "icon.png"))
     img.resize((256, 256), Image.LANCZOS).save(
         os.path.join(BUILD, "icon.ico"),
         sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
     )
-    print("icon.ico / icon.png written")
+    print("icon.ico / icon.png written (B/W)")
 
 
-def gradient_bg(w, h, top=DARK, bottom=DARK2):
+def gradient_bg(w, h, top=NEAR_BLACK, bottom=DEEP):
     img = Image.new("RGB", (w, h))
     d = ImageDraw.Draw(img)
-    for y in range(h):
-        d.line([(0, y), (w, y)], fill=lerp(top, bottom, y / max(1, h - 1)))
+    steps = max(h, 2)
+    for i in range(h):
+        t = i / (steps - 1)
+        col = tuple(int(top[c] + (bottom[c] - top[c]) * t) for c in range(3))
+        d.line([(0, i), (w, i)], fill=col)
     return img
 
 
@@ -90,15 +85,15 @@ def make_sidebar():
     w, h = 164, 314
     img = gradient_bg(w, h)
 
-    # sun disc art with soft glow
+    # faint white sun-glow behind the mark (monochrome)
     glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    gd.ellipse([12, 26, 152, 166], fill=(255, 140, 26, 60))
-    glow = glow.filter(__import__("PIL.ImageFilter", fromlist=["GaussianBlur"]).GaussianBlur(18))
+    gd.ellipse([22, 34, 142, 154], fill=(255, 255, 255, 30))
+    glow = glow.filter(ImageFilter.GaussianBlur(22))
     img.paste(Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB"), (0, 0))
 
-    sun = draw_sun(96)
-    img.paste(sun, ((w - 96) // 2, 34), sun)
+    mark = draw_logomark(88, stroke=2.0)
+    img.paste(mark, ((w - 88) // 2, 44), mark)
 
     d = ImageDraw.Draw(img)
     f_big = ImageFont.truetype(FONT_BOLD, 19)
@@ -109,28 +104,25 @@ def make_sidebar():
         tw = d.textlength(text, font=font)
         d.text(((w - tw) / 2, y), text, font=font, fill=color)
 
-    center("Sun Studio", f_big, 196, (242, 234, 217))
-    center("AI Image Studio", f_sub, 228, MUTED)
-
-    # thin divider
-    d.line([(44, 258), (120, 258)], fill=(60, 46, 26))
-
-    center("v0.0.9", f_ver, 276, MUTED)
+    center("Sun Studio", f_big, 196, (238, 240, 238))
+    center("AI Image Studio", f_sub, 228, FAINT)
+    d.line([(44, 258), (120, 258)], fill=(52, 56, 52))
+    center("v0.0.10", f_ver, 276, FAINT)
 
     img.save(os.path.join(BUILD, "installerSidebar.bmp"))
-    print("installerSidebar.bmp written", img.size)
+    print("installerSidebar.bmp written (B/W)", img.size)
 
 
 def make_header():
     w, h = 150, 57
     img = gradient_bg(w, h)
-    sun = draw_sun(34)
-    img.paste(sun, (8, 12), sun)
+    mark = draw_logomark(34, stroke=2.0)
+    img.paste(mark, (8, 12), mark)
     d = ImageDraw.Draw(img)
     f = ImageFont.truetype(FONT_BOLD, 15)
-    d.text((48, 19), "Sun Studio", font=f, fill=(242, 234, 217))
+    d.text((48, 19), "Sun Studio", font=f, fill=(238, 240, 238))
     img.save(os.path.join(BUILD, "installerHeader.bmp"))
-    print("installerHeader.bmp written", img.size)
+    print("installerHeader.bmp written (B/W)")
 
 
 def rtf_escape(s):

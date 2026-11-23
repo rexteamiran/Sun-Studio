@@ -29,7 +29,7 @@ export const DEFAULT_SETTINGS = {
   size: "1:1",
   quality: "medium",
   imageSize: "1K",
-  theme: "dark", // Studio Dark — see app/globals.css [data-theme]
+  theme: "studio", // dark SaaS default — see app/globals.css [data-theme]
 };
 
 interface StoreData {

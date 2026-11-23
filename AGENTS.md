@@ -31,11 +31,11 @@ Non-goals — never break these:
 | UI framework | **Next.js 16.2.6 + React 18.3.1 + Tailwind CSS 4** (the exact open-design versions — React 18 is pinned deliberately) |
 | Desktop shell | **Electron 45** (`electron/main.cjs`, CommonJS): spawns the Next standalone server via `ELECTRON_RUN_AS_NODE`, picks a free port (3570 preferred), opens a **frameless** window (`frame: false`) with a custom dark title bar (`components/TitleBar.tsx` + `electron/preload.cjs` IPC: `win:minimize/maximize/close`) |
 | Packaging | electron-builder → assisted NSIS, `asar: false` (the node child must read `server/`), appId `com.rexteamiran.sunstudio`, productName `Sun Studio` |
-| Updates | electron-updater (must stay in **`dependencies`**), `publish: github rexteamiran/Sun-Studio`, autoDownload + install-on-quit + restart dialog |
-| Migration | `electron/migrate.cjs` — v0.0.6 `settings.json` v3 (DPAPI keys) + `gallery/` → v4 Hermes layout in `userData/data`; idempotent, legacy files untouched; v0.0.6 dark themes kept, retired `mono` → `dark` |
+| Updates | electron-updater (must stay in **`dependencies`**), `publish: github rexteamiran/Sun-Studio`, autoDownload + install-on-quit; v0.0.10: update state pushed to the renderer over `update:*` IPC (`electron/updater.cjs` → `components/useUpdater.ts`) → Settings → Updates section + sidebar status chip — keep this visible-updater contract in every release |
+| Migration | `electron/migrate.cjs` — v0.0.6 `settings.json` v3 (DPAPI keys) + `gallery/` → v4 Hermes layout in `userData/data`; idempotent, legacy files untouched; v0.0.6 dark themes kept; retired ids (`mono`/`dark`) → `studio` |
 | Server layer | `src/server/` (TypeScript) — provider clients, store, secrets, gallery, service singletons |
 | API | Next.js route handlers under `app/api/*` (all `runtime = "nodejs"`, `dynamic = "force-dynamic"`) |
-| UI | `components/*.tsx` client components; theme via CSS vars in `app/globals.css` (`data-theme`, default **dark** = Studio Dark: near-black + amber accent) |
+| UI | `components/*.tsx` client components; theme via CSS vars in `app/globals.css` (`data-theme`, default **studio** = dark SaaS: charcoal-green + green accent) |
 | Secrets | **Hermes pattern**: `data/settings.json` (no keys) + `data/secrets.env` (`SUN_KEY_*`, 0600, re-read live). Custom endpoints: `SUN_KEY_CUSTOM_<8-hex of URL>` |
 | Tests | `npm run test:clients` (provider shapes) + `node scripts/test-migration.cjs` (v3→v4) + `scripts/e2e-mock-openai.js` (full flow) |
 | Release | tag `vX.Y.Z` → windows-latest CI → NSIS exe + latest.yml + blockmap (see `docs/RELEASE.md`) |

@@ -4,7 +4,7 @@ Living document — when you ship a milestone, move leftovers here and note deci
 `CHANGELOG.md`. Keep scope per release small (one theme + fixes) so the tag-driven release
 routine stays boring.
 
-## v0.0.10 — next candidates
+## v0.0.11 — next candidates
 - Live task progress for kie.ai (SSE stream of poll states) — v0.0.7 kept the simple
   request/response shape; the client already accepts `onStage`.
 - Batch export from Gallery (zip download) and prompt library (save/favorite locally).
@@ -58,3 +58,10 @@ routine stays boring.
   (near-black + amber accent), v0.0.6 dark themes restored with refined palettes, mono→dark
   mapping in migration, empty-states + affordance polish across all views. The installer/updater
   path is untouched.
+- 2026-11-23 — v0.0.10: user supplied reference screens and three directives. (1) The updater is
+  now **visible and always on** — Settings → Updates section + sidebar status chip, state pushed
+  over `update:*` IPC from the rewritten updater wrapper. (2) The whole brand is **strictly B/W**
+  — app icon and NSIS art regenerated as the white line logomark on black. (3) The UI adopts the
+  reference language: dark SaaS dashboard with a left sidebar, charcoal-green layered surfaces,
+  vivid green accent with glow, glassy pills; default theme renamed **Studio**; themes
+  rationalized (Studio / Midnight / Sunset / Violet / Paper) with retired ids mapped in migration.

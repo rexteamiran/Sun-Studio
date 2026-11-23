@@ -4,17 +4,14 @@ import { useState } from "react";
 import Logo from "./Logo";
 import { api, type Boot, type ProviderInfo } from "./api";
 import { ModelPicker, Spinner } from "./ui";
+import type { UpdateState } from "./useUpdater";
 import type { Toast } from "./Studio";
 
 const THEMES: { id: string; label: string }[] = [
-  { id: "dark", label: "Studio Dark" },
+  { id: "studio", label: "Studio (dark)" },
   { id: "midnight", label: "Midnight" },
   { id: "sunset", label: "Sunset" },
-  { id: "ember", label: "Ember" },
-  { id: "ocean", label: "Ocean" },
-  { id: "forest", label: "Forest" },
   { id: "violet", label: "Violet" },
-  { id: "mono", label: "Mono (light)" },
   { id: "paper", label: "Paper (light)" },
 ];
 
@@ -23,11 +20,19 @@ export default function SettingsView({
   toast,
   reload,
   setTheme,
+  updateState,
+  updatesAvailable,
+  checkUpdate,
+  installUpdate,
 }: {
   boot: Boot;
   toast: (m: string, t?: Toast["type"], ms?: number) => void;
   reload: () => Promise<void>;
   setTheme: (t: string) => Promise<void>;
+  updateState: UpdateState;
+  updatesAvailable: boolean;
+  checkUpdate: () => void;
+  installUpdate: () => void;
 }) {
   const [keyDraft, setKeyDraft] = useState<Record<string, string>>({});
   const [doctor, setDoctor] = useState<Record<string, { ok: boolean; message: string } | "busy">>({});
@@ -63,12 +68,6 @@ export default function SettingsView({
     try {
       const r = await api.testProvider(p.id);
       setDoctor((d) => ({ ...d, [p.id]: r }));
-      if (r.ok && p.dynamicModels) {
-        // re-test via the client also refreshes the model list; fetch it by
-        // saving the key again is overkill — the test endpoint returns ids? it
-        // returns a message only, so refetch bootstrap + rely on testKey's ids
-        // through a fresh test call:
-      }
     } catch (e) {
       setDoctor((d) => ({ ...d, [p.id]: { ok: false, message: (e as Error).message } }));
     } finally {
@@ -115,9 +114,45 @@ export default function SettingsView({
 
   const modelsFor = (p: ProviderInfo) => dynamicLists[p.id] || p.models;
 
+  const updateLine = () => {
+    if (!updatesAvailable)
+      return (
+        <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+          Running outside the desktop app (web/dev mode) — the built-in updater is part of the
+          Windows app and always stays on there.
+        </span>
+      );
+    if (updateState.status === "checking") return <span className="text-[12.5px] flex items-center gap-2" style={{ color: "var(--muted)" }}><Spinner /> Checking for updates…</span>;
+    if (updateState.status === "downloading")
+      return (
+        <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+          Downloading {updateState.version ? "v" + updateState.version : "update"}
+          {updateState.progress ? " — " + updateState.progress.percent + "%" : ""}…
+        </span>
+      );
+    if (updateState.status === "ready")
+      return (
+        <span className="text-[12.5px] flex flex-wrap items-center gap-3">
+          <span style={{ color: "var(--ok)" }}>
+            ✓ Sun Studio {updateState.version ? "v" + updateState.version : ""} is downloaded and ready.
+          </span>
+          <button className="btn !py-1.5 !px-3 text-[12px]" onClick={installUpdate}>Restart &amp; install</button>
+        </span>
+      );
+    if (updateState.status === "uptodate")
+      return <span className="text-[12.5px]" style={{ color: "var(--ok)" }}>✓ You are up to date — Sun Studio v{boot.version}.</span>;
+    if (updateState.status === "error")
+      return <span className="text-[12.5px]" style={{ color: "var(--danger)" }}>Update check failed — {updateState.error}</span>;
+    return (
+      <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>
+        Updates download silently in the background and install when you close the app.
+      </span>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-8">
-      {/* ---------- API CONNECTION (Hermes-style) ---------- */}
+      {/* ---------- API CONNECTION ---------- */}
       <section className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <Logo size={18} />
@@ -281,6 +316,28 @@ export default function SettingsView({
             </div>
           </div>
         ))}
+      </section>
+
+      {/* ---------- UPDATES ---------- */}
+      <section className="flex flex-col gap-4">
+        <h2 className="text-[15px] font-bold tracking-wide">UPDATES</h2>
+        <div className="card p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-[13px]">
+              <span className="font-semibold">Sun Studio v{boot.version}</span>
+              <span className="text-[var(--muted)]"> · updates ship from GitHub Releases</span>
+            </div>
+            <button
+              className="btn-ghost !py-1.5 text-[12px]"
+              onClick={checkUpdate}
+              disabled={!updatesAvailable || updateState.status === "checking" || updateState.status === "downloading"}
+            >
+              {updateState.status === "checking" || updateState.status === "downloading" ? <Spinner /> : null}
+              Check for updates
+            </button>
+          </div>
+          {updateLine()}
+        </div>
       </section>
 
       {/* ---------- APPEARANCE ---------- */}

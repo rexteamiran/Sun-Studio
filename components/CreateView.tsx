@@ -215,7 +215,7 @@ export default function CreateView({
       )}
 
       {meta.promo && (
-        <section className="card p-4 flex items-center justify-between gap-4">
+        <section className="card p-4 mb-4 flex items-center justify-between gap-4">
           <span className="text-[13px]">{meta.promo.title}</span>
           <a className="btn-ghost !py-1.5" href={meta.promo.url} target="_blank" rel="noreferrer">
             {meta.promo.urlLabel}

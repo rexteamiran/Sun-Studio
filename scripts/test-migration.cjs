@@ -97,7 +97,7 @@ async function main() {
     assert.strictEqual(settings.settings.models.openai, 'dall-e-3');
     assert.strictEqual(settings.settings.models['custom-abc'], 'my-model');
   });
-  test('unknown v0.0.6 theme → dark default (v0.0.9)', async () => {
+  test('unknown v0.0.6 theme → studio default (v0.0.10)', async () => {
     // rewrite the fixture with an unknown theme and re-run in a fresh dir
     const ud2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sun-legacy2-'));
     await fsp.writeFile(
@@ -107,9 +107,9 @@ async function main() {
     const r2 = await run({ userData: ud2, dataDir: path.join(ud2, 'data'), safeStorage: fakeSafeStorage, fs, path });
     const s2 = JSON.parse(await fsp.readFile(path.join(ud2, 'data', 'settings.json'), 'utf8'));
     assert.strictEqual(r2.migrated, true);
-    assert.strictEqual(s2.settings.theme, 'dark');
+    assert.strictEqual(s2.settings.theme, 'studio');
   });
-  test('retired mono theme (v0.0.7/8) → dark', async () => {
+  test('retired mono theme (v0.0.7/8) → studio', async () => {
     const ud3 = fs.mkdtempSync(path.join(os.tmpdir(), 'sun-legacy3-'));
     await fsp.writeFile(
       path.join(ud3, 'settings.json'),
@@ -117,7 +117,7 @@ async function main() {
     );
     await run({ userData: ud3, dataDir: path.join(ud3, 'data'), safeStorage: fakeSafeStorage, fs, path });
     const s3 = JSON.parse(await fsp.readFile(path.join(ud3, 'data', 'settings.json'), 'utf8'));
-    assert.strictEqual(s3.settings.theme, 'dark');
+    assert.strictEqual(s3.settings.theme, 'studio');
   });
   test('plain keys → secrets.env, undecryptable enc falls back to plain', () => {
     assert.ok(secrets.includes('SUN_KEY_OPENAI=sk-openai-plain'));

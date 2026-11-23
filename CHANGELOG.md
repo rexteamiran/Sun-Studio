@@ -4,6 +4,29 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.10] — 2026-11-23
+
+### Changed
+- **Reference-design redesign** (per user's reference screens): the top-nav layout became a dark
+  SaaS **dashboard with a left sidebar** — workspace header with the B/W logomark, glassy provider
+  pill, icon nav (Workspace) and a System section, view header with per-view subtitle, quiet footer.
+  New default theme **Studio**: charcoal-green layered surfaces (`#0d0f0d` → `#1c1f1c`), one vivid
+  green accent (`#3ddc55`) with a soft glow on primary buttons, hairline borders, rounded 10–14px
+  panels. Theme list rationalized to Studio / Midnight / Sunset / Violet / Paper; retired themes map
+  forward in migration (`mono`/`dark` → Studio, old accents keep their palette where kept).
+- **Branding is strictly black & white**: app icon, installer sidebar/header art regenerated as the
+  white line logomark on a black tile — no orange anywhere (verified grayscale in the asset script).
+
+### Added
+- **Visible in-app updater, always on**: a live **Updates** section in Settings (current version,
+  Check for updates, per-state status line, "Restart & install" when ready) plus a sidebar status
+  chip (downloading %, restart-to-update, up-to-date). The updater state flows from the main
+  process to the renderer through the sandboxed preload bridge (`update:*` IPC); web/dev builds
+  show an honest "updater lives in the desktop app" note instead of a dead button.
+
+### Fixed
+- Promo card at the bottom of Create no longer collides with the footer (margin added).
+
 ## [0.0.9] — 2026-11-23
 
 ### Changed
