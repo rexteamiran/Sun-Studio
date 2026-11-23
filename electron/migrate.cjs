@@ -75,8 +75,9 @@ async function run({ userData, dataDir, safeStorage, fs, path }) {
 
   await fsp.mkdir(dataDir, { recursive: true });
 
-  // ---- settings v4 (no secrets inside) ----
+  // ---- settings v5 (no secrets inside; providers are user-managed) ----
   const legacySettings = legacy.settings || {};
+  const legacyKeys = legacy.apiKeys && typeof legacy.apiKeys === 'object' ? legacy.apiKeys : {};
   const legacyCustom = Array.isArray(legacy.customProviders) ? legacy.customProviders : [];
   const customProviders = legacyCustom
     .filter((c) => c && typeof c.id === 'string' && /^https?:\/\//i.test(String(c.baseUrl || '')))
@@ -96,15 +97,31 @@ async function run({ userData, dataDir, safeStorage, fs, path }) {
     aipass: oldModels.aipass || 'gpt-image-1',
     kie: oldModels.kie || 'nano-banana-2-1',
     google: oldModels.google || 'gemini-nano-banana-2.1',
+    openrouter: oldModels.openrouter || 'google/gemini-2.5-flash-image',
+    stability: oldModels.stability || 'core',
   };
   for (const c of customProviders) {
     if (oldModels[c.id]) models[c.id] = String(oldModels[c.id]);
   }
 
+  // v0.0.11: providers are user-added. Seed the enabled list with the legacy
+  // active provider + anything that carries a key (they were all "installed"
+  // in v0.0.6) so nothing the user relied on disappears after the update.
+  const legacyKeyIds = Object.keys(legacyKeys).filter((id) => {
+    const entry = legacyKeys[id];
+    const k = decryptKey(entry, safeStorage);
+    return !!k;
+  });
+  const enabledProviders = Array.from(
+    new Set([provider, ...legacyKeyIds.filter((id) => knownIds.includes(id))])
+  );
+
   const settings = {
-    version: 4,
+    version: 5,
     provider,
+    enabledProviders,
     customProviders,
+    extraModels: {},
     settings: {
       models,
       size: legacySettings.size || '1:1',
@@ -118,7 +135,6 @@ async function run({ userData, dataDir, safeStorage, fs, path }) {
   await fsp.writeFile(newSettingsFile, JSON.stringify(settings, null, 2), 'utf8');
 
   // ---- secrets.env ----
-  const legacyKeys = legacy.apiKeys && typeof legacy.apiKeys === 'object' ? legacy.apiKeys : {};
   const secretLines = [];
   for (const [providerId, entry] of Object.entries(legacyKeys)) {
     const envName = legacyKeyToEnv(providerId, customProviders);

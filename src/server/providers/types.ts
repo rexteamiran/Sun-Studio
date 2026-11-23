@@ -61,6 +61,7 @@ export interface TestResult {
   models: number | null;
   ids?: string[];
   credits?: number | null;
+  message?: string;
 }
 
 export class ProviderError extends Error {

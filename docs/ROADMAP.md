@@ -58,6 +58,14 @@ routine stays boring.
   (near-black + amber accent), v0.0.6 dark themes restored with refined palettes, mono→dark
   mapping in migration, empty-states + affordance polish across all views. The installer/updater
   path is untouched.
+- 2026-11-23 — v0.0.11: user directives — (1) providers became user-managed: a 16-provider
+  **directory** in Settings (OpenAI/Google removable like everything else), settings schema v5
+  with `enabledProviders` (+ migration seeds it with every legacy key owner); (2) **custom models
+  on every provider** with removable chips; (3) **fetch models** — live `/models` pull into a
+  searchable add-list (needs a saved key); (4) technical chrome texts ("Local server · 127.0.0.1"
+  etc.) removed in favor of provider-connection state; (5) commercial polish: label contrast,
+  Gallery "Getting started" panel, Edit how-it-works panel, footer-safe spacing. New built-in
+  clients: OpenRouter Image API + Stability Stable Image API (verified against current docs).
 - 2026-11-23 — v0.0.10: user supplied reference screens and three directives. (1) The updater is
   now **visible and always on** — Settings → Updates section + sidebar status chip, state pushed
   over `update:*` IPC from the rewritten updater wrapper. (2) The whole brand is **strictly B/W**

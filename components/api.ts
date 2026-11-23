@@ -32,6 +32,8 @@ export interface ProviderInfo {
 
 export interface Boot {
   provider: string;
+  enabledProviders: string[];
+  catalog: { id: string; label: string; kind: string; baseUrl: string }[];
   settings: {
     provider: string;
     models: Record<string, string>;
@@ -42,6 +44,7 @@ export interface Boot {
   };
   providers: Record<string, ProviderInfo>;
   customProviders: { id: string; label: string; baseUrl: string; keyEnv: string; models: string[] }[];
+  extraModels: Record<string, string[]>;
   dataDir: string;
   version: string;
 }
@@ -83,6 +86,14 @@ export const api = {
     ),
   testProvider: (provider: string) =>
     postJson<{ ok: boolean; message: string }>("/api/test", { provider }),
+  addProvider: (id: string) => postJson<Boot>("/api/providers", { action: "add", id }),
+  removeProvider: (id: string) => postJson<Boot>("/api/providers", { action: "remove", id }),
+  addModels: (provider: string, models: string[]) =>
+    postJson<{ ok: boolean; models: string[]; snapshot: Boot }>("/api/models", { action: "add", provider, models }),
+  removeModel: (provider: string, model: string) =>
+    postJson<{ ok: boolean; models: string[]; snapshot: Boot }>("/api/models", { action: "remove", provider, model }),
+  fetchModels: (provider: string) =>
+    postJson<{ ok: boolean; ids: string[] }>("/api/models", { action: "fetch", provider }),
   custom: (action: "save" | "delete", payload: Record<string, unknown>) =>
     postJson<Boot>("/api/custom-providers", { action, ...payload }),
   generate: (body: Record<string, unknown>) =>

@@ -2,7 +2,7 @@
 
 **An AI image studio for Windows.** Generate, edit and restyle images with the best image models — through **your own keys**. Sun Studio ships with no AI inside: it connects directly to each provider's official API from a small server on your machine, so you always use your own account, your own limits and your own data.
 
-> v0.0.10 note — the studio is the **Next.js 16 + React 18** app in a minimal **Electron shell** (Windows installer). v0.0.10 adopts the reference design language: a dark SaaS dashboard layout with a left sidebar, charcoal-green layered surfaces, a vivid green accent with a soft glow, glassy pills, and a strictly black-and-white logomark/app icon. The updater is now a first-class citizen — a visible **Updates** section in Settings plus a live status chip in the sidebar. v0.0.6 data migrates on first launch; installed apps update through the built-in updater.
+> v0.0.11 note — providers are now **user-managed**: Settings → Add provider opens a directory of 16 famous image providers (OpenAI, Google Gemini, AI Pass, OpenRouter, Stability AI, kie.ai, fal.ai, Together, Replicate, DeepInfra, DeepSeek, Groq, Mistral, xAI, Hyperbolic, Novita) that you add or remove freely; OpenRouter and Stability ship as first-class built-in clients. Every provider gets **custom models** (add ids by hand or **fetch** the live list from its API). The design language stays the v0.0.10 dark SaaS dashboard with the B/W logomark; installed apps update through the built-in updater.
 
 ## Documentation
 
@@ -48,7 +48,7 @@ Switch providers any time from the pill in the top bar. Aspect ratio, quality/re
 
 ### 1. Install
 
-Download `SunStudio-Setup-0.0.10.exe` from the [latest release](https://github.com/rexteamiran/Sun-Studio/releases/latest) and run it — assisted setup with a license page, an install-dir picker and shortcuts. Nothing else is required (the studio server ships inside).
+Download `SunStudio-Setup-0.0.11.exe` from the [latest release](https://github.com/rexteamiran/Sun-Studio/releases/latest) and run it — assisted setup with a license page, an install-dir picker and shortcuts. Nothing else is required (the studio server ships inside).
 
 Already on **v0.0.6**? Just open the installed app → **Settings → Updates → Check for updates** — v0.0.10 installs over it and your keys, models, settings and gallery are migrated automatically on first launch (your old theme is kept).
 
@@ -81,7 +81,7 @@ npm run dist            # full Windows installer: next build → assemble server
 
 ## Building from CI
 
-Pushing a tag like `v0.0.10` triggers `.github/workflows/build.yml` (windows-latest): Next build → assemble Electron payload → electron-builder NSIS → release assets `SunStudio-Setup-X.Y.Z.exe` + `latest.yml` + `.blockmap` (the last two are what the in-app updater reads).
+Pushing a tag like `v0.0.11` triggers `.github/workflows/build.yml` (windows-latest): Next build → assemble Electron payload → electron-builder NSIS → release assets `SunStudio-Setup-X.Y.Z.exe` + `latest.yml` + `.blockmap` (the last two are what the in-app updater reads).
 
 ## Privacy & security
 

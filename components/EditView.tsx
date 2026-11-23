@@ -315,7 +315,7 @@ export default function EditView({
 
         <Field label="Prompt">
           <textarea
-            className="field min-h-24 resize-y"
+            className="field min-h-24 resize-none"
             placeholder={allowMask ? "What should change?…" : "Describe the style to apply…"}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -354,6 +354,33 @@ export default function EditView({
           </button>
         </div>
       </section>
+
+      {results.length === 0 && (
+        <aside className="card p-5 grid sm:grid-cols-3 gap-5">
+          <div className="flex flex-col gap-1.5">
+            <span className="mono-label">{allowMask ? "How masking works" : "How restyle works"}</span>
+            <p className="text-[12px] leading-relaxed" style={{ color: "var(--muted)" }}>
+              {allowMask
+                ? "Paint over the area you want changed, then describe the change — everything outside the mask stays untouched."
+                : "Add one or more reference images and describe the new look; the model keeps the composition while applying your style."}
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="mono-label">Best results</span>
+            <p className="text-[12px] leading-relaxed" style={{ color: "var(--muted)" }}>
+              Be specific: “replace the sky with a sunset”, “make it a watercolor”. For edits, one clear
+              change per run beats a long list.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="mono-label">Good to know</span>
+            <p className="text-[12px] leading-relaxed" style={{ color: "var(--muted)" }}>
+              Results land in your Gallery automatically. Up to 4 images can feed one run on
+              image-to-image providers.
+            </p>
+          </div>
+        </aside>
+      )}
 
       {results.length > 0 && (
         <section className="card p-5">

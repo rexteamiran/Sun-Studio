@@ -79,10 +79,14 @@ async function main() {
   const secrets = await fsp.readFile(path.join(dataDir, 'secrets.env'), 'utf8');
 
   test('migration ran once from v3', () => assert.strictEqual(result.from, 3));
-  test('settings version 4 + provider kie', () => {
-    assert.strictEqual(settings.version, 4);
+  test('settings version 5 + provider kie', () => {
+    assert.strictEqual(settings.version, 5);
     assert.strictEqual(settings.provider, 'kie');
   });
+  test('enabledProviders seeded: active + every legacy key owner (custom included)', () => {
+    assert.deepStrictEqual(settings.enabledProviders.sort(), ['aipass', 'custom-abc', 'kie', 'openai']);
+  });
+  test('extraModels starts empty', () => assert.deepStrictEqual(settings.extraModels, {}));
   test('theme ember preserved', () => assert.strictEqual(settings.settings.theme, 'ember'));
   test('size/quality/imageSize preserved', () => {
     assert.strictEqual(settings.settings.size, '2:3');

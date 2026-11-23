@@ -4,6 +4,8 @@
  *   - OpenAI-compatible: /models (test), /images/generations size/quality mapping
  *   - Google: /v1beta/interactions body (input blocks + response_format)
  *   - kie.ai: credit check, base64 upload, createTask input per family, polling
+ *   - OpenRouter: /images body (aspect_ratio/resolution/n) + /images/models
+ *   - Stability: multipart generate (core aspect_ratio, sd3.5 img2img mode)
  *
  * Run: npm run test:clients   (tsx)
  */
@@ -12,6 +14,8 @@ import assert from "assert";
 import { OpenAICompatibleClient } from "../src/server/providers/openai";
 import { GoogleClient } from "../src/server/providers/google";
 import { KieClient } from "../src/server/providers/kie";
+import { OpenRouterClient } from "../src/server/providers/openrouter";
+import { StabilityClient } from "../src/server/providers/stability";
 import type { ProviderMeta } from "../src/server/providers/types";
 
 // payload must exceed collectImageBlocks' 1024-char heuristic (same as production data)
@@ -21,6 +25,7 @@ const PNG_B64 =
 
 const captured: { name: string; value: unknown }[] = [];
 const kieTasks: Record<string, { polls: number; fail: boolean }> = {};
+const stabilityForms: { name: string; fields: Record<string, string>; files: string[] }[] = [];
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url!, "http://x");
@@ -28,7 +33,40 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => chunks.push(c));
   req.on("end", () => {
     const raw = Buffer.concat(chunks);
+    const ctype = String(req.headers["content-type"] || "");
     res.setHeader("Content-Type", "application/json");
+
+    // ---- OpenRouter mock ----
+    if (url.pathname === "/api/v1/images/models") {
+      res.end(JSON.stringify({ data: [{ id: "or/a" }, { id: "or/b" }, { id: "or/c" }] }));
+      return;
+    }
+    if (url.pathname === "/api/v1/images") {
+      captured.push({ name: "openrouter.generate", value: JSON.parse(raw.toString()) });
+      res.end(JSON.stringify({ data: [{ b64_json: PNG_B64 }] }));
+      return;
+    }
+
+    // ---- Stability mock (multipart) ----
+    if (url.pathname.startsWith("/v2beta/stable-image/generate/")) {
+      const fields: Record<string, string> = {};
+      const files: string[] = [];
+      const boundary = ctype.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+      if (boundary) {
+        const parts = raw.toString("binary").split("--" + (boundary[1] || boundary[2]));
+        for (const part of parts) {
+          const hm = part.match(/name="([^"]+)"(?:; filename="([^"]*)")?/);
+          if (!hm) continue;
+          const body = part.slice(part.indexOf("\r\n\r\n") + 4).replace(/\r\n$/, "");
+          if (hm[2]) files.push(hm[1]);
+          else fields[hm[1]] = body;
+        }
+      }
+      stabilityForms.push({ name: url.pathname.split("/").pop()!, fields, files });
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ image: PNG_B64, seed: 1, finish_reason: "SUCCESS" }));
+      return;
+    }
 
     // ---- OpenAI-compatible mock ----
     if (url.pathname === "/v1/models") {
@@ -253,6 +291,66 @@ async function main() {
       kie.generate({ prompt: "FORCE_FAIL", model: "nano-banana-2-1", aspect: "1:1", imageSize: "1K", n: 1 }),
       /generation failed on kie\.ai.*content policy/
     );
+  });
+
+  const openrouter = new OpenRouterClient({ baseUrl: base + "/api/v1", getApiKey: key });
+  const stability = new StabilityClient({ baseUrl: base, getApiKey: key });
+
+  await test("openrouter.listModels reads the image catalog", async () => {
+    const ids = await openrouter.listModels();
+    assert.deepStrictEqual(ids, ["or/a", "or/b", "or/c"]);
+  });
+
+  await test("openrouter.generate body: aspect_ratio + resolution + n", async () => {
+    const out = await openrouter.generate({ prompt: "p", model: "or/x", aspect: "16:9", imageSize: "2K", n: 1 });
+    assert.strictEqual(out.length, 1);
+    const body = captured.reverse().find((c) => c.name === "openrouter.generate")!.value as Record<string, unknown>;
+    assert.strictEqual(body.model, "or/x");
+    assert.strictEqual(body.aspect_ratio, "16:9");
+    assert.strictEqual(body.resolution, "2K");
+    assert.strictEqual(body.response_format, "b64_json");
+  });
+
+  await test("openrouter.edit builds input_references data URLs", async () => {
+    await openrouter.edit({ imageBuffers: [{ mime: "image/png", data: PNG_B64 }], prompt: "restyle", model: "or/x", aspect: "1:1", n: 1 });
+    const body = captured.reverse().find((c) => c.name === "openrouter.generate")!.value as {
+      input_references: { image_url: { url: string } }[];
+    };
+    assert.strictEqual(body.input_references.length, 1);
+    assert.ok(body.input_references[0].image_url.url.startsWith("data:image/png;base64,"));
+  });
+
+  await test("stability.generate core: aspect_ratio form field, Bearer auth, JSON base64", async () => {
+    const out = await stability.generate({ prompt: "p", model: "core", aspect: "16:9", n: 1 });
+    assert.strictEqual(out.length, 1);
+    const f = stabilityForms[stabilityForms.length - 1];
+    assert.strictEqual(f.name, "core");
+    assert.strictEqual(f.fields.aspect_ratio, "16:9");
+    assert.strictEqual(f.fields.output_format, "png");
+    assert.strictEqual(f.fields.mode, undefined);
+  });
+
+  await test("stability.generate sd3.5-large passes the model field", async () => {
+    await stability.generate({ prompt: "p", model: "sd3.5-large", aspect: "1:1", n: 1 });
+    const f = stabilityForms[stabilityForms.length - 1];
+    assert.strictEqual(f.name, "sd3");
+    assert.strictEqual(f.fields.model, "sd3.5-large");
+  });
+
+  await test("stability.edit sd3.5: img2img mode + image file + strength", async () => {
+    await stability.edit({ imageBuffers: [{ mime: "image/png", data: PNG_B64 }], prompt: "edit it", model: "sd3.5-medium", n: 1 });
+    const f = stabilityForms[stabilityForms.length - 1];
+    assert.strictEqual(f.fields.mode, "image-to-image");
+    assert.strictEqual(f.fields.strength, "0.95");
+    assert.ok(f.files.includes("image"));
+    assert.strictEqual(f.fields.aspect_ratio, undefined); // no aspect in img2img
+  });
+
+  await test("stability.edit core routes through the sd3.5 family", async () => {
+    await stability.edit({ imageBuffers: [{ mime: "image/png", data: PNG_B64 }], prompt: "edit it", model: "core", n: 1 });
+    const f = stabilityForms[stabilityForms.length - 1];
+    assert.strictEqual(f.fields.model, "sd3.5-medium");
+    assert.strictEqual(f.fields.mode, "image-to-image");
   });
 
   console.log("\n=== client tests ===");

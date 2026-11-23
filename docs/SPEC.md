@@ -3,10 +3,9 @@
 An AI image studio for Windows with **no AI inside**: the user brings their own provider key (OpenAI, AI
 Pass, kie.ai, Google Gemini) and every request goes from the local server (`127.0.0.1`) directly
 to the provider. This spec is the behavioral reference; implementation details live in
-`docs/ARCHITECTURE.md`. (v0.0.10: reference-design dark SaaS dashboard — left sidebar,
-charcoal-green layered surfaces, vivid green accent, strictly B/W branding; visible in-app
-updater via Settings → Updates and the sidebar status chip. The views and behaviors below
-are unchanged.)
+`docs/ARCHITECTURE.md`. (v0.0.11: providers are user-managed through a 16-entry directory in
+Settings → Add provider; every provider supports user-added custom models and a live fetch of
+its model list. Design/chrome unchanged from the v0.0.10 dark SaaS dashboard with B/W branding.)
 
 ## Non-goals
 

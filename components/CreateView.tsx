@@ -199,7 +199,7 @@ export default function CreateView({
           </div>
         </section>
       ) : (
-        <section className="card empty-state p-10 flex flex-col items-center justify-center text-center gap-3">
+        <section className="card empty-state p-10 mb-4 flex flex-col items-center justify-center text-center gap-3">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" className="opacity-30" aria-hidden="true">
             <rect x="3" y="4" width="18" height="16" rx="2.5" />
             <path d="M3 16l4.5-4.5a2 2 0 0 1 2.8 0L14 15.2" />
@@ -215,7 +215,7 @@ export default function CreateView({
       )}
 
       {meta.promo && (
-        <section className="card p-4 mb-4 flex items-center justify-between gap-4">
+        <section className="card p-4 mb-2 flex items-center justify-between gap-4">
           <span className="text-[13px]">{meta.promo.title}</span>
           <a className="btn-ghost !py-1.5" href={meta.promo.url} target="_blank" rel="noreferrer">
             {meta.promo.urlLabel}

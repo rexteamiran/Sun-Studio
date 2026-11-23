@@ -141,13 +141,13 @@ export default function Studio() {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-[13px]" style={{ color: "var(--muted)" }}>
-          Connecting to the local server…
+          Starting Sun Studio…
         </div>
       </main>
     );
   }
 
-  const meta: ProviderInfo = boot.providers[boot.provider] || boot.providers.aipass;
+  const meta: ProviderInfo = boot.providers[boot.provider] || Object.values(boot.providers)[0];
   const providerIds = Object.keys(boot.providers);
 
   const updateChip = () => {
@@ -260,17 +260,6 @@ export default function Studio() {
             <div className="mt-auto flex flex-col gap-0.5">
               <div className="side-header mb-1.5">System</div>
               {updateChip()}
-              <button
-                className="side-item"
-                onClick={() => setView("settings")}
-                title="Settings"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
-                </svg>
-                <span className="truncate">Local · 127.0.0.1</span>
-              </button>
             </div>
           </div>
         </aside>
@@ -311,7 +300,7 @@ export default function Studio() {
 
           {/* views */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-5xl mx-auto px-6 py-7">
+            <div className="max-w-5xl mx-auto px-6 pt-7 pb-16">
               {view === "create" && <CreateView boot={boot} meta={meta} toast={toast} reload={reload} />}
               {view === "edit" && (
                 <EditView boot={boot} meta={meta} toast={toast} allowMask key={"edit-" + boot.provider} />
@@ -328,10 +317,10 @@ export default function Studio() {
           <footer className="border-t shrink-0" style={{ borderColor: "var(--line)", background: "var(--chrome)" }}>
             <div className="px-6 h-9 flex items-center justify-between">
               <span className="text-[11px] tracking-wide" style={{ color: "var(--muted)" }}>
-                Bring your own key — private by design, on your machine
+                Bring your own key — private by design
               </span>
               <span className="text-[11px] tracking-wide" style={{ color: "var(--muted)" }}>
-                Local server · 127.0.0.1
+                {meta.label}{meta.hasKey ? " · connected" : " · add a key in Settings"}
               </span>
             </div>
           </footer>

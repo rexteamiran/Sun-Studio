@@ -212,8 +212,18 @@ body {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--muted);
+  color: var(--label, #a8ada8); /* one step brighter than --muted for legibility */
   font-weight: 600;
+}
+:root,
+[data-theme="studio"],
+[data-theme="midnight"],
+[data-theme="sunset"],
+[data-theme="violet"] {
+  --label: #a8ada8;
+}
+[data-theme="paper"] {
+  --label: #555b55;
 }
 .mono-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -351,7 +361,7 @@ body {
   border-color: var(--line);
   background:
     radial-gradient(ellipse at center, var(--panel-2) 0%, var(--panel) 70%);
-  min-height: 260px;
+  min-height: 180px;
 }
 
 /* scrollbars match the studio look */

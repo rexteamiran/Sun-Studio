@@ -4,6 +4,38 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.11] — 2026-11-23
+
+### Changed
+- **Providers are user-managed** (per user request): API CONNECTION no longer hard-lists OpenAI and
+  Google. A **provider directory** (Settings → Add provider) lists 16 famous image-capable
+  providers — OpenAI, Google Gemini, AI Pass, OpenRouter, Stability AI, kie.ai, fal.ai, Together AI,
+  Replicate, DeepInfra, DeepSeek, Groq, Mistral, xAI Grok, Hyperbolic, Novita AI — and any of them
+  (OpenAI and Google included) can be added or removed from API CONNECTION at will. Removing a
+  provider keeps its saved key in secrets.env. Settings schema moved to v5 (`enabledProviders`);
+  upgrading users keep everything they had a key for.
+- **Two new built-in clients** (endpoint shapes verified against current docs): **OpenRouter**
+  (`POST /api/v1/images` — aspect_ratio/resolution/n, `input_references` for image-to-image,
+  `GET /api/v1/images/models`) and **Stability AI** (`POST /v2beta/stable-image/generate/{core|ultra|sd3}`
+  multipart, Bearer auth, `aspect_ratio`/`model`/`mode=image-to-image`+`strength`, JSON base64
+  response; core/ultra edits route through the sd3.5 family).
+
+### Added
+- **Custom models on every provider**: a "Models · add new ones any time" box on each provider
+  card — type model ids (comma-separated) or add from a fetched list; user-added models appear as
+  removable chips and merge into that provider's model picker everywhere.
+- **Fetch models**: a live "⇩ Fetch models" button per provider pulls the provider's real model
+  list (`/models` on its API) into a searchable list with one-click Add. Requires a saved key —
+  honest error when there is none.
+- **Commercial polish pass**: brighter micro-label contrast (WCAG-safe), a "Getting started"
+  01/02/03 side panel in the empty Gallery, a three-column how-it-works panel in Edit/Restyle,
+  consistent prompt boxes (no stray resize handle), and no card can collide with the footer anymore.
+
+### Removed
+- Technical texts from the chrome: "Local server · 127.0.0.1", "Local · 127.0.0.1" and
+  "Connecting to the local server…" are gone — the footer now shows provider connection state,
+  and the boot screen says "Starting Sun Studio…".
+
 ## [0.0.10] — 2026-11-23
 
 ### Changed
