@@ -58,13 +58,16 @@ routine stays boring.
   (near-black + amber accent), v0.0.6 dark themes restored with refined palettes, mono→dark
   mapping in migration, empty-states + affordance polish across all views. The installer/updater
   path is untouched.
-- 2026-11-23 — v0.0.12: user report "the updater does not work" — root causes: (1) no
-  `build.publish` in package.json → installers never carried `app-update.yml`; (2) `win` getter
-  passed to `initUpdater` but treated as a window → first update event crashed the main process.
-  Fixed both; added runtime `setFeedURL` fallback (pre-v0.0.12 installs self-update), packaged-only
-  auto-check, "Open releases page" manual escape hatch in Settings → Updates, and a 10-check
-  mocked updater test suite (`npm run test:updater`). Verified `app-update.yml` lands in packaged
-  resources via a local electron-builder --dir run.
+- 2026-11-23 — v0.0.12: user report "the updater does not work" — root cause: `initUpdater`
+  receives a `win` getter but called `.isDestroyed()` on it; the first updater event threw a
+  TypeError that killed the check → download pipeline before any state reached the UI (the feed
+  itself was fine — `electron-builder.yml` always carried publish and baked app-update.yml).
+  Fixed the getter handling; added a runtime `setFeedURL` fallback when app-update.yml is missing,
+  packaged-only auto-check, an "Open releases page" escape hatch in Settings → Updates, and a
+  10-check mocked updater suite (`npm run test:updater`). Verified packaging via local
+  electron-builder --dir (app-update.yml + unpacked electron//server/). Also caught a trap the
+  hard way: adding a `build` field to package.json makes electron-builder ignore electron-builder.yml
+  (asar:true + wrong file selection + default artifact name) — first v0.0.12 tag was re-cut for it.
 - 2026-11-23 — v0.0.11: user directives — (1) providers became user-managed: a 16-provider
   **directory** in Settings (OpenAI/Google removable like everything else), settings schema v5
   with `enabledProviders` (+ migration seeds it with every legacy key owner); (2) **custom models

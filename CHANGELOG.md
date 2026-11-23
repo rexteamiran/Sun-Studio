@@ -7,25 +7,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/) — versions foll
 ## [0.0.12] — 2026-11-23
 
 ### Fixed
-- **The in-app updater never worked** (user report) — two independent defects:
-  1. `package.json` carried no `build.publish`, so electron-builder never baked
-     `resources/app-update.yml` into the installer and `checkForUpdates()` died immediately with
-     "Unable to find app-update.yml". The GitHub feed (`provider: github · rexteamiran/Sun-Studio`)
-     is now declared in `package.json` — verified: the file lands in the packaged resources.
-  2. `initUpdater({ win: () => win })` hands over a getter, but the wrapper called
-     `win.isDestroyed()` on it — the first updater event crashed the main process with a TypeError
-     before any state reached the UI (invisible in smoke tests, which quit within 1.5 s). The
-     wrapper now normalizes both shapes; covered by a new mocked-module test suite
-     (`npm run test:updater`, 10 checks).
+- **The in-app updater never worked** (user report). Root cause: `main.cjs` calls
+  `initUpdater({ win: () => win })` — a *getter* — but the wrapper called `win.isDestroyed()` on
+  it directly. The very first updater event threw a TypeError inside the main process, killing the
+  whole check → download pipeline before any state reached the UI (invisible in smoke tests,
+  which quit within 1.5 s). The wrapper now normalizes both shapes; covered by a new mocked-module
+  test suite (`npm run test:updater`, 10 checks). Note: `resources/app-update.yml` was always
+  baked correctly (publish config lives in `electron-builder.yml`) — the feed was never the
+  problem. Installers built between the first v0.0.12 attempt (tag re-cut) are identical to
+  v0.0.11 in structure; **v0.0.10/v0.0.11 installs update themselves to v0.0.12 automatically**
+  (autoDownload + install-on-quit run inside electron-updater, independent of the UI).
 
 ### Added
-- **Self-update for already-installed copies**: installers built before v0.0.12 carry no
-  app-update.yml — when it is missing, the updater sets the GitHub feed at runtime
-  (`setFeedURL`), so a v0.0.10/v0.0.11 install updates itself to v0.0.12 without a manual download.
 - **Manual escape hatch**: Settings → Updates shows the real error text plus an
   "Open releases page" button (`update:open-releases` IPC) whenever a check fails — a way out on
   networks where the GitHub API is blocked or rate-limited.
+- Belt-and-suspenders feed fallback: if `app-update.yml` is ever missing, the updater sets the
+  GitHub feed at runtime (`setFeedURL`) instead of dying with "Unable to find app-update.yml".
 - The background auto-check now runs only in packaged builds (dev was logging updater failures).
+
+### Build
+- Regression guard documented in `AGENTS.md`: do **not** add a `build` field to `package.json` —
+  electron-builder then ignores `electron-builder.yml` (asar:false, the electron/ + server/ file
+  selection and the `SunStudio-Setup-*` artifact name are lost, and the server/ payload inside an
+  asar archive cannot be read by the plain-node child process). A first v0.0.12 tag was re-cut
+  for exactly that reason.
 
 ## [0.0.11] — 2026-11-23
 

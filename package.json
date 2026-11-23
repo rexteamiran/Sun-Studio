@@ -5,13 +5,6 @@
   "private": false,
   "description": "Sun Studio \u2014 AI image studio for Windows (Next.js 16 + React 18 studio in an Electron shell). Bring your own key; nothing ships inside.",
   "main": "electron/main.cjs",
-  "build": {
-    "publish": {
-      "provider": "github",
-      "owner": "rexteamiran",
-      "repo": "Sun-Studio"
-    }
-  },
   "engines": {
     "node": ">=20.9.0"
   },
