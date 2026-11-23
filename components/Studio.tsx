@@ -78,7 +78,7 @@ export default function Studio() {
   const [provOpen, setProvOpen] = useState(false);
   const provRef = useRef<HTMLDivElement>(null);
   const toastSeq = useRef(1);
-  const { state: updateState, check: checkUpdate, install: installUpdate, available: updatesAvailable } = useUpdater();
+  const { state: updateState, check: checkUpdate, install: installUpdate, openReleases, available: updatesAvailable } = useUpdater();
 
   const toast = useCallback((msg: string, type: Toast["type"] = "info", ms = 4200) => {
     const id = toastSeq.current++;
@@ -309,7 +309,7 @@ export default function Studio() {
                 <EditView boot={boot} meta={meta} toast={toast} allowMask={false} key={"restyle-" + boot.provider} />
               )}
               {view === "gallery" && <GalleryView toast={toast} refreshSignal={boot.version} />}
-              {view === "settings" && <SettingsView boot={boot} toast={toast} reload={reload} setTheme={setTheme} updateState={updateState} updatesAvailable={updatesAvailable} checkUpdate={checkUpdate} installUpdate={installUpdate} />}
+              {view === "settings" && <SettingsView boot={boot} toast={toast} reload={reload} setTheme={setTheme} updateState={updateState} updatesAvailable={updatesAvailable} checkUpdate={checkUpdate} installUpdate={installUpdate} openReleases={openReleases} />}
             </div>
           </div>
 

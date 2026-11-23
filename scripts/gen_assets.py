@@ -107,7 +107,7 @@ def make_sidebar():
     center("Sun Studio", f_big, 196, (238, 240, 238))
     center("AI Image Studio", f_sub, 228, FAINT)
     d.line([(44, 258), (120, 258)], fill=(52, 56, 52))
-    center("v0.0.11", f_ver, 276, FAINT)
+    center("v0.0.12", f_ver, 276, FAINT)
 
     img.save(os.path.join(BUILD, "installerSidebar.bmp"))
     print("installerSidebar.bmp written (B/W)", img.size)

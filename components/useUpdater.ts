@@ -19,6 +19,7 @@ declare global {
     sunUpdates?: {
       check: () => Promise<unknown>;
       install: () => void;
+      openReleases: () => void;
       getState: () => Promise<UpdateState>;
       onState: (cb: (s: UpdateState) => void) => void;
     };
@@ -38,6 +39,7 @@ export function useUpdater() {
 
   const check = () => window.sunUpdates?.check();
   const install = () => window.sunUpdates?.install();
+  const openReleases = () => window.sunUpdates?.openReleases();
 
-  return { state, check, install, available };
+  return { state, check, install, openReleases, available };
 }

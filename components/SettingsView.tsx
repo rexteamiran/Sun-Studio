@@ -24,6 +24,7 @@ export default function SettingsView({
   updatesAvailable,
   checkUpdate,
   installUpdate,
+  openReleases,
 }: {
   boot: Boot;
   toast: (m: string, t?: Toast["type"], ms?: number) => void;
@@ -33,6 +34,7 @@ export default function SettingsView({
   updatesAvailable: boolean;
   checkUpdate: () => void;
   installUpdate: () => void;
+  openReleases: () => void;
 }) {
   const [keyDraft, setKeyDraft] = useState<Record<string, string>>({});
   const [doctor, setDoctor] = useState<Record<string, { ok: boolean; message: string } | "busy">>({});
@@ -210,7 +212,14 @@ export default function SettingsView({
     if (updateState.status === "uptodate")
       return <span className="text-[12.5px]" style={{ color: "var(--ok)" }}>✓ You are up to date — Sun Studio v{boot.version}.</span>;
     if (updateState.status === "error")
-      return <span className="text-[12.5px]" style={{ color: "var(--danger)" }}>Update check failed — {updateState.error}</span>;
+      return (
+        <span className="text-[12.5px] flex flex-wrap items-center gap-3">
+          <span style={{ color: "var(--danger)" }}>Update check failed — {updateState.error}</span>
+          <button className="btn-ghost !py-1 !px-2.5 text-[11.5px]" onClick={openReleases} title="Download the latest installer manually">
+            Open releases page
+          </button>
+        </span>
+      );
     return (
       <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>
         Updates download silently in the background and install when you close the app.

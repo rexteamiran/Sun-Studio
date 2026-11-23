@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('sunWindow', {
 contextBridge.exposeInMainWorld('sunUpdates', {
   check: () => ipcRenderer.invoke('update:check'),
   install: () => ipcRenderer.invoke('update:install'),
+  openReleases: () => ipcRenderer.invoke('update:open-releases'),
   getState: () => ipcRenderer.invoke('update:state'),
   onState: (cb) => ipcRenderer.on('update:state', (_e, state) => cb(state)),
 });

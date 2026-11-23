@@ -2,7 +2,7 @@ import { Store } from "./store";
 import { Gallery } from "./gallery";
 import { ProviderError } from "./providers/types";
 
-export const APP_VERSION = "0.0.11";
+export const APP_VERSION = "0.0.12";
 
 export const store = new Store();
 export const gallery = new Gallery();

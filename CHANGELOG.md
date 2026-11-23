@@ -4,6 +4,29 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.12] — 2026-11-23
+
+### Fixed
+- **The in-app updater never worked** (user report) — two independent defects:
+  1. `package.json` carried no `build.publish`, so electron-builder never baked
+     `resources/app-update.yml` into the installer and `checkForUpdates()` died immediately with
+     "Unable to find app-update.yml". The GitHub feed (`provider: github · rexteamiran/Sun-Studio`)
+     is now declared in `package.json` — verified: the file lands in the packaged resources.
+  2. `initUpdater({ win: () => win })` hands over a getter, but the wrapper called
+     `win.isDestroyed()` on it — the first updater event crashed the main process with a TypeError
+     before any state reached the UI (invisible in smoke tests, which quit within 1.5 s). The
+     wrapper now normalizes both shapes; covered by a new mocked-module test suite
+     (`npm run test:updater`, 10 checks).
+
+### Added
+- **Self-update for already-installed copies**: installers built before v0.0.12 carry no
+  app-update.yml — when it is missing, the updater sets the GitHub feed at runtime
+  (`setFeedURL`), so a v0.0.10/v0.0.11 install updates itself to v0.0.12 without a manual download.
+- **Manual escape hatch**: Settings → Updates shows the real error text plus an
+  "Open releases page" button (`update:open-releases` IPC) whenever a check fails — a way out on
+  networks where the GitHub API is blocked or rate-limited.
+- The background auto-check now runs only in packaged builds (dev was logging updater failures).
+
 ## [0.0.11] — 2026-11-23
 
 ### Changed

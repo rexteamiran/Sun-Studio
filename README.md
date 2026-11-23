@@ -48,7 +48,7 @@ Switch providers any time from the pill in the top bar. Aspect ratio, quality/re
 
 ### 1. Install
 
-Download `SunStudio-Setup-0.0.11.exe` from the [latest release](https://github.com/rexteamiran/Sun-Studio/releases/latest) and run it — assisted setup with a license page, an install-dir picker and shortcuts. Nothing else is required (the studio server ships inside).
+Download `SunStudio-Setup-0.0.12.exe` from the [latest release](https://github.com/rexteamiran/Sun-Studio/releases/latest) and run it — assisted setup with a license page, an install-dir picker and shortcuts. Nothing else is required (the studio server ships inside).
 
 Already on **v0.0.6**? Just open the installed app → **Settings → Updates → Check for updates** — v0.0.10 installs over it and your keys, models, settings and gallery are migrated automatically on first launch (your old theme is kept).
 
@@ -81,7 +81,7 @@ npm run dist            # full Windows installer: next build → assemble server
 
 ## Building from CI
 
-Pushing a tag like `v0.0.11` triggers `.github/workflows/build.yml` (windows-latest): Next build → assemble Electron payload → electron-builder NSIS → release assets `SunStudio-Setup-X.Y.Z.exe` + `latest.yml` + `.blockmap` (the last two are what the in-app updater reads).
+Pushing a tag like `v0.0.12` triggers `.github/workflows/build.yml` (windows-latest): Next build → assemble Electron payload → electron-builder NSIS → release assets `SunStudio-Setup-X.Y.Z.exe` + `latest.yml` + `.blockmap` (the last two are what the in-app updater reads).
 
 ## Privacy & security
 

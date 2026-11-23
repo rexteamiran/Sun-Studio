@@ -1,10 +1,17 @@
 {
   "name": "sun-studio",
   "productName": "Sun Studio",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "private": false,
-  "description": "Sun Studio — AI image studio for Windows (Next.js 16 + React 18 studio in an Electron shell). Bring your own key; nothing ships inside.",
+  "description": "Sun Studio \u2014 AI image studio for Windows (Next.js 16 + React 18 studio in an Electron shell). Bring your own key; nothing ships inside.",
   "main": "electron/main.cjs",
+  "build": {
+    "publish": {
+      "provider": "github",
+      "owner": "rexteamiran",
+      "repo": "Sun-Studio"
+    }
+  },
   "engines": {
     "node": ">=20.9.0"
   },
@@ -15,7 +22,8 @@
     "serve": "node .next/standalone/server.js",
     "prepare:electron": "node scripts/prepare-electron.mjs",
     "dist": "npm run build && npm run prepare:electron && electron-builder --win nsis --x64 --publish never",
-    "test:clients": "tsx scripts/test-clients.ts"
+    "test:clients": "tsx scripts/test-clients.ts",
+    "test:updater": "node scripts/test-updater.cjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
