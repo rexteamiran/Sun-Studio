@@ -4,6 +4,29 @@ All notable changes to Sun Studio are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/) — versions follow
 [Semantic Versioning](https://semver.org/); every release is a git tag `vX.Y.Z` built by CI.
 
+## [0.0.9] — 2026-11-23
+
+### Changed
+- **Dark studio redesign — the default look is now a commercial dark theme.** The window is
+  **frameless** with a custom in-app dark title bar (logo, wordmark, version, minimize /
+  maximize / close caption buttons via a sandboxed preload bridge) — the native Windows chrome
+  (accent-colored frame, system title bar) is gone completely. New default theme **Studio Dark**:
+  near-black surfaces (`#0c0c0e` page → `#141417` panels), warm amber accent, hairline borders,
+  dark scrollbars, styled focus rings; the v0.0.6 dark themes (Sunset, Ember, Ocean, Forest,
+  Violet) return with refined palettes, plus Midnight; Mono and Paper remain as the light
+  options. v0.0.6 updates land on their old theme; v0.0.7/v0.0.8 `mono` maps to **Studio Dark**.
+
+### Added
+- **Commercial polish pass** across all views: designed empty-states for Create ("Your results
+  will appear here") and Gallery (with a *Create your first image* CTA that navigates to Create),
+  chevron affordances on every select, Ctrl/Cmd+Enter to generate (with on-screen tip), Generate
+  button arrow icon, quieter footer copy, neutral gray (not alarming red) status dots for
+  providers without a saved key.
+
+### Kept
+- Installer, updater path (exe + latest.yml + blockmap), v0.0.6 data migration, all providers
+  and the Hermes-style API connection — unchanged from v0.0.8.
+
 ## [0.0.8] — 2026-11-23
 
 ### Changed

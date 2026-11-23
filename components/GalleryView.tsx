@@ -46,13 +46,33 @@ export default function GalleryView({
     );
   }
   if (!items.length) {
-    return <div className="text-[13px] text-[var(--muted)]">Nothing here yet — generate something in Create.</div>;
+    return (
+      <section className="card empty-state p-10 flex flex-col items-center justify-center text-center gap-3">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" className="opacity-30" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2.5" />
+          <path d="M3 16l4.5-4.5a2 2 0 0 1 2.8 0L14 15.2" />
+          <path d="M13 13.2l2-2a2 2 0 0 1 2.8 0L21 14.4" />
+          <circle cx="9" cy="8.6" r="1.3" />
+        </svg>
+        <div className="text-[14px] font-semibold">Your gallery is empty</div>
+        <div className="text-[12.5px] max-w-sm" style={{ color: "var(--muted)" }}>
+          Images you generate are stored locally on this machine and appear here — always private,
+          never uploaded anywhere else.
+        </div>
+        <a className="btn !py-2 text-[12.5px] mt-1" href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("sun:navigate", { detail: "create" })); }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Create your first image
+        </a>
+      </section>
+    );
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <span className="mono-label">{items.length} images · stored locally in data/gallery</span>
+        <span className="mono-label">{items.length} images · stored locally on this machine</span>
         <button className="btn-ghost !py-1.5 text-[12px]" onClick={load}>
           Refresh
         </button>

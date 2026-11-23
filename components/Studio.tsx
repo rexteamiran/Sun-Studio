@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Logo from "./Logo";
+import TitleBar from "./TitleBar";
 import { api, type Boot, type ProviderInfo } from "./api";
 import CreateView from "./CreateView";
 import EditView from "./EditView";
@@ -82,6 +83,13 @@ export default function Studio() {
     if (boot?.settings.theme) document.documentElement.dataset.theme = boot.settings.theme;
   }, [boot?.settings.theme]);
 
+  // custom navigation event (Gallery empty-state CTA)
+  useEffect(() => {
+    const nav = (e: Event) => setView((e as CustomEvent<string>).detail as View);
+    window.addEventListener("sun:navigate", nav);
+    return () => window.removeEventListener("sun:navigate", nav);
+  }, []);
+
   if (!boot) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -96,14 +104,13 @@ export default function Studio() {
   const providerIds = Object.keys(boot.providers);
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="h-screen flex flex-col overflow-hidden">
+      {/* custom window title bar (frameless) */}
+      <TitleBar version={boot.version} />
+
       {/* top bar */}
-      <header className="border-b sticky top-0 z-40" style={{ borderColor: "var(--line)", background: "var(--bg)" }}>
-        <div className="max-w-5xl mx-auto px-5 h-14 flex items-center gap-6">
-          <div className="flex items-center gap-2.5 shrink-0">
-            <Logo size={20} />
-            <span className="font-bold tracking-[0.18em] text-[13px]">SUN&nbsp;STUDIO</span>
-          </div>
+      <header className="border-b shrink-0" style={{ borderColor: "var(--line)", background: "var(--chrome)" }}>
+        <div className="max-w-5xl mx-auto px-5 h-13 py-2.5 flex items-center gap-6">
           <nav className="flex items-center gap-5 flex-1 overflow-x-auto">
             {TABS.map((t) => (
               <button key={t.id} className={"tab " + (view === t.id ? "active" : "")} onClick={() => setView(t.id)}>
@@ -118,10 +125,13 @@ export default function Studio() {
             >
               <span
                 className="inline-block w-2 h-2 rounded-full"
-                style={{ background: meta.hasKey ? "var(--ok)" : "var(--danger)" }}
+                style={{ background: meta.hasKey ? "var(--ok)" : "var(--muted)" }}
+                title={meta.hasKey ? "Key connected" : "No key saved"}
               />
               <span className="text-[12px]">{meta.label}</span>
-              <span className="text-[10px] opacity-60">▾</span>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" className="opacity-60" aria-hidden="true">
+                <path d="M2 3.8L5 6.8L8 3.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             {pillOpen && (
               <div className="absolute right-0 mt-2 w-64 card shadow-lg overflow-hidden z-50">
@@ -155,7 +165,7 @@ export default function Studio() {
       </header>
 
       {/* views */}
-      <div className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-5 py-8">
           {view === "create" && <CreateView boot={boot} meta={meta} toast={toast} reload={reload} />}
           {view === "edit" && (
@@ -170,10 +180,14 @@ export default function Studio() {
       </div>
 
       {/* footer */}
-      <footer className="border-t" style={{ borderColor: "var(--line)" }}>
+      <footer className="border-t shrink-0" style={{ borderColor: "var(--line)", background: "var(--chrome)" }}>
         <div className="max-w-5xl mx-auto px-5 h-10 flex items-center justify-between">
-          <span className="mono-label">No AI inside — your keys, your providers</span>
-          <span className="mono-value text-[var(--muted)]">v{boot.version} · 127.0.0.1 only</span>
+          <span className="text-[11px] tracking-wide" style={{ color: "var(--muted)" }}>
+            Bring your own key — private by design, on your machine
+          </span>
+          <span className="text-[11px] tracking-wide" style={{ color: "var(--muted)" }}>
+            Local server · 127.0.0.1
+          </span>
         </div>
       </footer>
 

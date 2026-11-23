@@ -3,8 +3,9 @@
 An AI image studio for Windows with **no AI inside**: the user brings their own provider key (OpenAI, AI
 Pass, kie.ai, Google Gemini) and every request goes from the local server (`127.0.0.1`) directly
 to the provider. This spec is the behavioral reference; implementation details live in
-`docs/ARCHITECTURE.md`. (v0.0.8: the v0.0.7 studio UI ships inside an Electron shell — the views
-and behaviors below are unchanged.)
+`docs/ARCHITECTURE.md`. (v0.0.9: the studio ships in a frameless Electron window with a custom
+dark title bar; the default theme is **Studio Dark** — commercial dark surfaces with an amber
+accent. The views and behaviors below are unchanged.)
 
 ## Non-goals
 

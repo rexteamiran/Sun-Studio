@@ -11,7 +11,7 @@
  * CommonJS on purpose — the main process runs whatever package.json "main"
  * points to, without a build step.
  */
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
 const net = require('net');
@@ -99,15 +99,25 @@ function createWindow(port) {
     minWidth: 940,
     minHeight: 640,
     show: false,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#0c0c0e',
+    frame: false, // custom in-app dark title bar — no native Windows chrome
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
+  // window dragging + caption buttons over the custom title bar
+  ipcMain.handle('win:minimize', () => win && !win.isDestroyed() && win.minimize());
+  ipcMain.handle('win:maximize', () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.handle('win:close', () => win && !win.isDestroyed() && win.close());
   win.once('ready-to-show', () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);

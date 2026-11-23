@@ -4,7 +4,7 @@ Living document — when you ship a milestone, move leftovers here and note deci
 `CHANGELOG.md`. Keep scope per release small (one theme + fixes) so the tag-driven release
 routine stays boring.
 
-## v0.0.8 — next candidates
+## v0.0.10 — next candidates
 - Live task progress for kie.ai (SSE stream of poll states) — v0.0.7 kept the simple
   request/response shape; the client already accepts `onStage`.
 - Batch export from Gallery (zip download) and prompt library (save/favorite locally).
@@ -52,3 +52,9 @@ routine stays boring.
   shell (server child process + window + electron-updater); same appId/productName as v0.0.6 so
   the old updater upgrades in place; one-shot v3→v4 data migration keeps keys/settings/gallery
   (legacy files untouched); releases carry exe + latest.yml + blockmap again.
+- 2026-11-23 — v0.0.9: user feedback again — the light monochrome default and the native Windows
+  frame read as "not commercial". Redesign: **frameless window** + custom dark title bar
+  (caption buttons over a sandboxed preload bridge), default theme **Studio Dark**
+  (near-black + amber accent), v0.0.6 dark themes restored with refined palettes, mono→dark
+  mapping in migration, empty-states + affordance polish across all views. The installer/updater
+  path is untouched.

@@ -2,7 +2,7 @@
 
 **An AI image studio for Windows.** Generate, edit and restyle images with the best image models — through **your own keys**. Sun Studio ships with no AI inside: it connects directly to each provider's official API from a small server on your machine, so you always use your own account, your own limits and your own data.
 
-> v0.0.8 note — the studio UI is the **Next.js 16 + React 18** app introduced in v0.0.7 (the open-design stack, monochrome black-and-white design, Hermes-style API connection). It now ships again inside a minimal **Electron shell** as a familiar Windows installer, with a one-time migration that carries over every setting, key and gallery image from v0.0.6 — and installed v0.0.6 apps update to v0.0.8 through their built-in updater.
+> v0.0.9 note — the studio UI is the **Next.js 16 + React 18** app introduced in v0.0.7, shipping inside a minimal **Electron shell** as a familiar Windows installer. v0.0.9 turns it into a commercial dark product: a frameless window with a custom dark title bar and the **Studio Dark** default theme (near-black surfaces, amber accent), with a one-time migration that carries over every setting, key and gallery image from v0.0.6 — and installed v0.0.6 apps update to v0.0.9 through their built-in updater.
 
 ## Documentation
 
@@ -41,16 +41,16 @@ Switch providers any time from the pill in the top bar. Aspect ratio, quality/re
 | **Model picker** | Searchable per-provider model dropdown with quality badges; live model list for AI Pass and custom endpoints. |
 | **Hermes-style API connection** | Keys live in `data/secrets.env` (mode 0600), referenced by env names (`SUN_KEY_KIE`, URL-hashed `SUN_KEY_CUSTOM_<HASH>` for custom endpoints) — the same config/secrets separation the Hermes agent uses. A doctor-style **Test** line shows the connection verdict and credit balance. |
 | **Local gallery** | Every result is stored server-side with prompt, provider, model and settings; download or delete from the grid. |
-| **Monochrome design** | A black-and-white default theme (`Mono`) inspired by open-design, plus Midnight and six accent themes. |
+| **Dark studio design** | A commercial dark default theme (`Studio Dark`: near-black surfaces, amber accent) in a frameless window with a custom dark title bar — plus Sunset, Ember, Ocean, Forest, Violet, Midnight and two light options. |
 | **Localhost only** | The server binds to `127.0.0.1` — nothing is exposed to the network. |
 
 ## Getting started
 
 ### 1. Install
 
-Download `SunStudio-Setup-0.0.8.exe` from the [latest release](https://github.com/rexteamiran/Sun-Studio/releases/latest) and run it — assisted setup with a license page, an install-dir picker and shortcuts. Nothing else is required (the studio server ships inside).
+Download `SunStudio-Setup-0.0.9.exe` from the [latest release](https://github.com/rexteamiran/Sun-Studio/releases/latest) and run it — assisted setup with a license page, an install-dir picker and shortcuts. Nothing else is required (the studio server ships inside).
 
-Already on **v0.0.6**? Just open the installed app → **Settings → Updates → Check for updates** — v0.0.8 installs over it and your keys, models, settings and gallery are migrated automatically on first launch.
+Already on **v0.0.6**? Just open the installed app → **Settings → Updates → Check for updates** — v0.0.9 installs over it and your keys, models, settings and gallery are migrated automatically on first launch (your old theme is kept).
 
 ### 2. Add a provider key
 
@@ -81,7 +81,7 @@ npm run dist            # full Windows installer: next build → assemble server
 
 ## Building from CI
 
-Pushing a tag like `v0.0.8` triggers `.github/workflows/build.yml` (windows-latest): Next build → assemble Electron payload → electron-builder NSIS → release assets `SunStudio-Setup-X.Y.Z.exe` + `latest.yml` + `.blockmap` (the last two are what the in-app updater reads).
+Pushing a tag like `v0.0.9` triggers `.github/workflows/build.yml` (windows-latest): Next build → assemble Electron payload → electron-builder NSIS → release assets `SunStudio-Setup-X.Y.Z.exe` + `latest.yml` + `.blockmap` (the last two are what the in-app updater reads).
 
 ## Privacy & security
 

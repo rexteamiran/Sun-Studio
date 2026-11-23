@@ -115,7 +115,7 @@ def make_sidebar():
     # thin divider
     d.line([(44, 258), (120, 258)], fill=(60, 46, 26))
 
-    center("v0.0.8", f_ver, 276, MUTED)
+    center("v0.0.9", f_ver, 276, MUTED)
 
     img.save(os.path.join(BUILD, "installerSidebar.bmp"))
     print("installerSidebar.bmp written", img.size)

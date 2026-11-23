@@ -22,7 +22,10 @@ function customKeyEnv(baseUrl) {
 }
 
 const BUILTIN_IDS = ['openai', 'aipass', 'kie', 'google'];
-const KNOWN_THEMES = ['mono', 'midnight', 'sunset', 'ember', 'ocean', 'forest', 'violet', 'paper'];
+// v0.0.6 shipped these (all dark); unknown → the v0.0.9 default "dark"
+const KNOWN_THEMES = ['sunset', 'ember', 'ocean', 'forest', 'violet', 'paper'];
+// v0.0.7/v0.0.8 theme ids retired in v0.0.9 → mapped forward
+const RETIRED_THEMES = { mono: 'dark', midnight: 'midnight' };
 
 function legacyKeyToEnv(providerId, customProviders) {
   if (BUILTIN_IDS.includes(providerId)) return 'SUN_KEY_' + providerId.toUpperCase();
@@ -107,7 +110,9 @@ async function run({ userData, dataDir, safeStorage, fs, path }) {
       size: legacySettings.size || '1:1',
       quality: legacySettings.quality || 'medium',
       imageSize: legacySettings.imageSize || '1K',
-      theme: KNOWN_THEMES.includes(legacySettings.theme) ? legacySettings.theme : 'mono',
+      theme: KNOWN_THEMES.includes(legacySettings.theme)
+        ? legacySettings.theme
+        : RETIRED_THEMES[legacySettings.theme] || 'dark',
     },
   };
   await fsp.writeFile(newSettingsFile, JSON.stringify(settings, null, 2), 'utf8');

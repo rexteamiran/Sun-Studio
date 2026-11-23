@@ -7,14 +7,15 @@ import { ModelPicker, Spinner } from "./ui";
 import type { Toast } from "./Studio";
 
 const THEMES: { id: string; label: string }[] = [
-  { id: "mono", label: "Mono" },
+  { id: "dark", label: "Studio Dark" },
   { id: "midnight", label: "Midnight" },
   { id: "sunset", label: "Sunset" },
   { id: "ember", label: "Ember" },
   { id: "ocean", label: "Ocean" },
   { id: "forest", label: "Forest" },
   { id: "violet", label: "Violet" },
-  { id: "paper", label: "Paper" },
+  { id: "mono", label: "Mono (light)" },
+  { id: "paper", label: "Paper (light)" },
 ];
 
 export default function SettingsView({
@@ -140,7 +141,8 @@ export default function SettingsView({
                   <div className="flex items-center gap-2">
                     <span
                       className="inline-block w-2 h-2 rounded-full"
-                      style={{ background: p.hasKey ? "var(--ok)" : "var(--danger)" }}
+                      style={{ background: p.hasKey ? "var(--ok)" : "var(--muted)" }}
+                      title={p.hasKey ? "Key saved" : "No key saved yet"}
                     />
                     <span className="text-[14px] font-semibold">{p.label}</span>
                     <span className="mono-label">{p.type}</span>
