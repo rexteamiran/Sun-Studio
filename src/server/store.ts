@@ -16,7 +16,7 @@ import type { ProviderMeta } from "./providers/types";
 /**
  * Settings store — Hermes-style separation of config and secrets:
  *   data/settings.json  → non-secret settings only (never contains keys)
- *   data/secrets.env    → API keys, referenced from here via keyEnv names
+ *   legacy data/secrets.env    → old plaintext keys (read-only; current writes use encrypted vault)
  *
  * v0.0.11: providers are user-managed. `enabledProviders` lists the ids the
  * user added from the catalog (or custom endpoints); the registry simply
@@ -135,9 +135,14 @@ export class Store {
       // first run — recommended default so the app is never empty
       this.data.enabledProviders = [DEFAULT_SETTINGS.provider];
     }
-    // never leave the app without a usable provider
+    // Repair stale/duplicate references in memory without rewriting user data on load.
+    this.data.enabledProviders = Array.from(new Set(this.data.enabledProviders))
+      .filter((id) => this.isKnown(id));
     if (!this.data.enabledProviders.length) {
-      this.data.enabledProviders = [this.isKnown(DEFAULT_SETTINGS.provider) ? DEFAULT_SETTINGS.provider : "aipass"];
+      this.data.enabledProviders = [DEFAULT_SETTINGS.provider];
+    }
+    if (!this.data.enabledProviders.includes(this.data.provider)) {
+      this.data.provider = this.data.enabledProviders[0];
     }
     this.loaded = true;
   }
@@ -262,7 +267,7 @@ export class Store {
     label: string;
     baseUrl: string;
     models?: string[];
-  }): Promise<void> {
+  }): Promise<string> {
     await this.load();
     const label = String(p.label || "").trim();
     const baseUrl = String(p.baseUrl || "")
@@ -293,16 +298,28 @@ export class Store {
       this.data.settings.models[id!] = models[0] || "gpt-image-1";
     }
     await this.persist();
+    return entry.id;
   }
 
   async deleteCustomProvider(id: string): Promise<void> {
     await this.load();
-    const before = this.data.customProviders.length;
-    this.data.customProviders = this.data.customProviders.filter((c) => c.id !== id);
-    if (this.data.customProviders.length === before) throw new Error("Custom provider not found.");
-    this.data.enabledProviders = this.data.enabledProviders.filter((x) => x !== id);
-    if (this.data.provider === id) this.data.provider = this.data.enabledProviders[0] || "aipass";
-    await this.persist();
+    if (!this.data.customProviders.some((c) => c.id === id)) {
+      throw new Error("Custom provider not found.");
+    }
+    const customProviders = this.data.customProviders.filter((c) => c.id !== id);
+    const enabledProviders = this.data.enabledProviders.filter((x) => x !== id);
+    if (!enabledProviders.length) enabledProviders.push(DEFAULT_SETTINGS.provider);
+    const provider = enabledProviders.includes(this.data.provider)
+      ? this.data.provider
+      : enabledProviders[0];
+    const previous = this.data;
+    this.data = { ...previous, customProviders, enabledProviders, provider };
+    try {
+      await this.persist();
+    } catch (error) {
+      this.data = previous;
+      throw error;
+    }
   }
 
   async update(partial: Partial<StoreData["settings"]> & { provider?: string }): Promise<void> {
@@ -353,7 +370,8 @@ export class Store {
     const key = this.getApiKey(id);
     const envName = this.keyEnvFor(id);
     if (!key) return { hasKey: false, hint: "", keyEnv: envName };
-    return { hasKey: true, hint: key.slice(0, 6) + "…" + key.slice(-4), keyEnv: envName };
+    const hint = key.length > 10 ? key.slice(0, 6) + "…" + key.slice(-4) : "Saved";
+    return { hasKey: true, hint, keyEnv: envName };
   }
 
   /** Everything the UI needs — contains NO secret values, only presence + hint. */
@@ -374,7 +392,7 @@ export class Store {
       customProviders: this.data.customProviders.map((c) => ({ ...c })),
       extraModels: JSON.parse(JSON.stringify(this.data.extraModels)) as Record<string, string[]>,
       dataDir: dataDir(),
-      secretsFile: "secrets.env",
+      secretsFile: "secrets.enc.json",
     };
   }
 }

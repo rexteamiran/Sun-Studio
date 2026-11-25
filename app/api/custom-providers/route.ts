@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/src/server/service";
+import { store, publicErrorMessage } from "@/src/server/service";
 import { ensureStoreDir } from "@/src/server/store";
 import { dropClient } from "@/src/server/clients";
 
@@ -15,18 +15,16 @@ export async function POST(req: NextRequest) {
     const action = String(body?.action || "");
     if (action === "save") {
       const p = body.provider || {};
-      await store.saveCustomProvider({
+      const id = await store.saveCustomProvider({
         id: p.id ? String(p.id) : undefined,
         label: String(p.label || ""),
         baseUrl: String(p.baseUrl || ""),
         models: Array.isArray(p.models) ? p.models : [],
       });
-      const entry = store.data.customProviders.find((c) => c.label === String(p.label || ""));
-      if (entry) dropClient(entry.id);
-      // a new custom provider may carry its first key alongside
-      if (p.key && String(p.key).trim()) {
-        const id = entry ? entry.id : null;
-        if (id) await store.setApiKey(id, String(p.key).trim());
+      dropClient(id);
+      // Bind the key to the exact saved endpoint, never a non-unique display label.
+      if (typeof p.key === "string" && p.key.trim()) {
+        await store.setApiKey(id, p.key.trim());
       }
     } else if (action === "delete") {
       const id = String(body?.id || "");
@@ -37,6 +35,6 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(store.snapshot());
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    return NextResponse.json({ error: publicErrorMessage(e) }, { status: 400 });
   }
 }
