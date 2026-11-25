@@ -41,13 +41,26 @@ Non-goals — never break these:
 | Release | tag `vX.Y.Z` → windows-latest CI → NSIS exe + latest.yml + blockmap (see `docs/RELEASE.md`) |
 
 Golden rules:
-1. UI text is **English**; replies to the user in chat are **Persian**.
+1. Project-maintained content is **English-only** (see the policy below); replies to the user in chat are **Persian**.
 2. Registry entries live **once**: `src/server/providers/registry.ts` is the source of truth and the
    UI receives everything via `/api/bootstrap` — do **not** re-mirror metadata in components.
 3. Every provider client returns **base64 strings**; `gallery.saveBuffer()` does the format sniffing.
 4. TypeScript is strict — `npx tsc --noEmit` must stay clean; `npm run build` type-checks again.
 5. Installer art + versions move together: `scripts/gen_assets.py` sidebar text, `package.json`,
    `src/server/service.ts APP_VERSION`, CHANGELOG.
+
+## English-only project policy
+
+All project-maintained content must be in English: source code identifiers where language-bearing,
+comments, UI copy, documentation, filenames, test descriptions and fixtures, commit messages,
+issues, and pull requests. Do not add Persian words to the project. Keep user-facing chat replies
+in Persian; that does not permit non-English content in the repository or GitHub contributions.
+
+Audit existing tracked content during the current 0.0.x polish and bug-fixing phase and resolve
+violations through reviewed changes. This policy does not claim that a repository-wide language
+audit has passed. It supersedes earlier roadmap requirements for Persian UI or Persian sample
+text; generic text-editing functionality remains in scope. See the
+[approved roadmap](docs/ROADMAP.md) for stage gates and authorization limits.
 
 ## Session checklist
 

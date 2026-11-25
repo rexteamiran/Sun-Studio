@@ -91,8 +91,15 @@ Pushing a tag like `v0.0.13` triggers `.github/workflows/build.yml` (windows-lat
 
 ## Roadmap
 
-- v0.0.10 — live task progress streaming (SSE) for kie.ai, batch export, prompt library
-- v0.1 — per-project galleries, optional portable build
+The approved [0.0.x-to-1.0 roadmap](docs/ROADMAP.md) starts with current-screen visual polish,
+English-only content review, and reproducible bug fixing in **0.0.x**, before feature expansion
+in **0.1**. Later stages target a reliable local editor, precise AI editing, layers and recoverable
+projects, creative tools, text/templates, finishing, batch output, beta validation, and a stable
+Windows image studio. These are target stages, not claims that the features have shipped.
+
+All project-maintained content must be English-only; see the
+[project language policy](AGENTS.md#english-only-project-policy). Recording the roadmap does not
+authorize implementation, paid API calls, builds, or a product release.
 
 ## License
 
