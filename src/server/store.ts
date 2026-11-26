@@ -73,7 +73,7 @@ function cleanId(id: unknown): string | null {
 
 export class CustomProviderKeySaveError extends Error {
   constructor(readonly providerId: string) {
-    super("The endpoint was saved, but its API key could not be saved. Save the key again in Settings; no connection was tested.");
+    super("The endpoint was saved, but the API key update could not be confirmed. Check this connection in Settings before saving the key again; no connection was tested.");
     this.name = "CustomProviderKeySaveError";
   }
 }

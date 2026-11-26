@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import { upsertSecret } from "../src/server/secrets";
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fsp from "node:fs/promises";
@@ -115,4 +117,42 @@ test("held and stale clients cannot send a new key to an old endpoint", async (t
     { url: "https://a.example/v1/models", authorization: "Bearer synthetic-key-a" },
     { url: "https://b.example/v1/models", authorization: "Bearer synthetic-key-b" },
   ]);
+});
+
+test("post-write key permission failure reports uncertainty without false rollback", async (t) => {
+  const { store } = await fixture(t);
+  const chmod = fsp.chmod.bind(fsp);
+  t.mock.method(fsp, "chmod", async (...args: Parameters<typeof fsp.chmod>) => {
+    if (String(args[0]).endsWith("secrets.env")) throw Error("synthetic post-write chmod fault");
+    return chmod(...args);
+  });
+  let id = "";
+  await assert.rejects(store.saveCustomProvider({ label: "Test", baseUrl: "https://a.example/v1" }, "synthetic-confirmation-key"), (error: unknown) => {
+    assert.ok(error instanceof CustomProviderKeySaveError);
+    id = error.providerId;
+    assert.match(error.message, /could not be confirmed/);
+    return true;
+  });
+  assert.ok(store.providerMeta(id));
+  assert.equal(store.getApiKey(id), "synthetic-confirmation-key");
+});
+
+test("unreadable plaintext credentials do not erase retained keys on upsert", async (t) => {
+  const { store, dir } = await fixture(t);
+  const id = await store.saveCustomProvider({ label: "Test", baseUrl: "https://a.example/v1" }, "synthetic-retained");
+  const secretFile = path.join(dir, "secrets.env");
+  const before = await fsp.readFile(secretFile, "utf8");
+  const read = t.mock.method(fs, "readFileSync", () => { throw Object.assign(Error("synthetic read fault"), { code: "EACCES" }); });
+  await assert.rejects(store.setApiKey(id, "synthetic-replacement"), /Credential storage could not be read/);
+  read.mock.restore();
+  assert.equal(await fsp.readFile(secretFile, "utf8"), before);
+});
+
+test("credential upsert rejects line injection before modifying files", async (t) => {
+  const { dir } = await fixture(t);
+  await upsertSecret("SUN_KEY_TEST", "synthetic-retained");
+  const file = path.join(dir, "secrets.env");
+  const before = await fsp.readFile(file, "utf8");
+  await assert.rejects(upsertSecret("SUN_KEY_TEST", "synthetic\nSUN_KEY_OTHER=synthetic-injected"), /invalid/);
+  assert.equal(await fsp.readFile(file, "utf8"), before);
 });

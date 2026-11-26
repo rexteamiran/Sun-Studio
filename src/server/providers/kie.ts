@@ -409,6 +409,10 @@ export class KieClient implements ImageClient {
       if (!Array.isArray(imageBuffers) || !imageBuffers.length) {
         throw new ProviderError("No image selected.", 0);
       }
+      const recipe = recipeFor(model);
+      if (!recipe.i2i || !recipe.imageField) {
+        throw new ProviderError("The selected kie.ai model does not have a supported image-to-image recipe. Select a supported image-to-image model explicitly.", 400);
+      }
       if (onStage) onStage("Uploading your image to kie.ai…");
       const urls: string[] = [];
       for (const img of imageBuffers) urls.push(await this.uploadImage(img));

@@ -1,3 +1,4 @@
+import { OpenAICompatibleClient } from "../src/server/providers/openai";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runSequentialImages, ImageBatchError } from "../src/server/providers/batch";
@@ -81,4 +82,33 @@ test("Kie collects an already submitted task after a later creation failure", as
   assert.equal(creates, 2);
   assert.deepEqual(polled, tasks);
   assert.equal(saved.length, 1);
+});
+
+test("unsupported Kie edit recipes and DALL-E 3 never dispatch", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", async () => { throw Error("unexpected network"); });
+  const kie = new KieClient({ providerMeta: PROVIDERS.kie, getApiKey: key });
+  const upload = t.mock.method(kie, "uploadImage", async () => { throw Error("unexpected upload"); });
+  for (const model of ["nano-banana", "gpt-image/1.5-text-to-image", "synthetic-unknown"]) {
+    await assert.rejects(kie.edit({ imageBuffers: [image], prompt: "edit", model }),
+      (error: unknown) => error instanceof ProviderError && error.status === 400);
+  }
+  const openai = new OpenAICompatibleClient({ providerMeta: PROVIDERS.openai, getApiKey: key });
+  await assert.rejects(openai.edit({ images: [image], prompt: "edit", model: "dall-e-3" }),
+    (error: unknown) => error instanceof ProviderError && error.status === 400);
+  assert.equal(upload.mock.callCount(), 0);
+  assert.equal(fetch.mock.callCount(), 0);
+});
+
+test("OpenAI editing preserves WebP MIME, filename and bytes", async (t) => {
+  const bytes = Buffer.from("synthetic WebP bytes");
+  t.mock.method(globalThis, "fetch", async (_url: string | URL | Request, init?: RequestInit) => {
+    assert.ok(init?.body instanceof FormData);
+    const file = init.body.get("image") as File;
+    assert.equal(file.type, "image/webp");
+    assert.equal(file.name, "image0.webp");
+    assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
+    return new Response(JSON.stringify({ data: [{ b64_json: image.data }] }), { status: 200 });
+  });
+  const client = new OpenAICompatibleClient({ providerMeta: PROVIDERS.openai, getApiKey: key });
+  await client.edit({ images: [{ mime: "image/webp", data: bytes.toString("base64") }], prompt: "edit", model: "gpt-image-1" });
 });
