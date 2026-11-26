@@ -31,7 +31,12 @@ export interface ImageInput {
   data: string; // raw base64 (no data: prefix)
 }
 
-export interface GenerateParams {
+export interface ImageProgress {
+  onImage?: (base64: string) => Promise<void>;
+  onTask?: (taskId: string) => void;
+}
+
+export interface GenerateParams extends ImageProgress {
   prompt: string;
   model: string;
   aspect?: string;
@@ -42,10 +47,10 @@ export interface GenerateParams {
   onStage?: (s: string) => void;
 }
 
-export interface EditParams {
+export interface EditParams extends ImageProgress {
   images?: ImageInput[]; // OpenAI-compatible shape (originals + optional mask)
   maskPng?: Buffer | null; // binary PNG (opaque = keep) — OpenAI-compatible only
-  imageBuffers?: ImageInput[]; // Gemini / kie.ai shape (pre-composited in browser)
+  imageBuffers?: ImageInput[]; // Non-OpenAI clients; browser-composited images where supported
   prompt: string;
   model: string;
   aspect?: string;

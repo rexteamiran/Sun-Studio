@@ -47,8 +47,9 @@ export function publicErrorMessage(e: unknown): string {
 
 export function jsonError(e: unknown, fallbackStatus = 500): { error: string; status: number } {
   const err = e as ProviderError | null | undefined;
-  const status = typeof err?.status === "number" && Number.isInteger(err.status)
-    && err.status >= 400 && err.status <= 599 ? err.status : fallbackStatus;
+  const validStatus = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= 400 && value <= 599;
+  const status = validStatus(err?.status) ? err.status : validStatus(fallbackStatus) ? fallbackStatus : 500;
   return { error: publicErrorMessage(e), status };
 }
 

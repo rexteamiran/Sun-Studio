@@ -16,7 +16,7 @@ import type { ProviderMeta } from "./providers/types";
 /**
  * Settings store — Hermes-style separation of config and secrets:
  *   data/settings.json  → non-secret settings only (never contains keys)
- *   legacy data/secrets.env    → old plaintext keys (read-only; current writes use encrypted vault)
+ *   data/secrets.env    → current plaintext keys; encrypted vault integration is pending
  *
  * v0.0.11: providers are user-managed. `enabledProviders` lists the ids the
  * user added from the catalog (or custom endpoints); the registry simply
@@ -392,7 +392,7 @@ export class Store {
       customProviders: this.data.customProviders.map((c) => ({ ...c })),
       extraModels: JSON.parse(JSON.stringify(this.data.extraModels)) as Record<string, string[]>,
       dataDir: dataDir(),
-      secretsFile: "secrets.enc.json",
+      secretsFile: "secrets.env",
     };
   }
 }

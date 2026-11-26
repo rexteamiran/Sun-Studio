@@ -37,8 +37,9 @@ function parse(content: string): Record<string, string> {
 export function readSecrets(): Record<string, string> {
   try {
     return parse(fs.readFileSync(secretsFile(), "utf8"));
-  } catch {
-    return {};
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return {};
+    throw new Error("Credential storage could not be read. Existing data was kept.");
   }
 }
 

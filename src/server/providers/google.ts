@@ -1,9 +1,11 @@
+import { runSequentialImages } from "./batch";
 import {
   ProviderError,
   friendlyNetworkError,
   type ImageClient,
   type ImageInput,
   type TestResult,
+  type GenerateParams,
 } from "./types";
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -138,37 +140,16 @@ export class GoogleClient implements ImageClient {
     }
   }
 
-  async generate({
-    prompt,
-    model,
-    aspect,
-    imageSize,
-    n,
-  }: {
-    prompt: string;
-    model: string;
-    aspect?: string;
-    imageSize?: string;
-    n?: number;
-  }): Promise<string[]> {
-    const count = Math.min(4, Math.max(1, Number(n) || 1));
-    const out: string[] = [];
-    for (let i = 0; i < count; i++) {
-      // Google produces one image per call; sequential keeps ordering predictable
-      const one = await this._imageOnce({ prompt, model, aspect, imageSize, images: [] });
-      out.push(...one);
-    }
-    return out;
+  async generate({ prompt, model, aspect, imageSize, n, onImage }: GenerateParams): Promise<string[]> {
+    return runSequentialImages(n,
+      () => this._imageOnce({ prompt, model, aspect, imageSize, images: [] }), onImage);
   }
 
-  async edit({
-    imageBuffers,
-    prompt,
-    model,
-    aspect,
-    imageSize,
-  }: import("./types").EditParams): Promise<string[]> {
-    return this._imageOnce({ prompt, model, aspect, imageSize, images: imageBuffers || [] });
+  async edit({ imageBuffers, maskPng, prompt, model, aspect, imageSize, n, onImage }: import("./types").EditParams): Promise<string[]> {
+    if (maskPng) throw new ProviderError("This Google integration requires a browser-composited reference instead of a separate edit mask.", 400);
+    if (!Array.isArray(imageBuffers) || !imageBuffers.length) throw new ProviderError("No image selected.", 400);
+    return runSequentialImages(n,
+      () => this._imageOnce({ prompt, model, aspect, imageSize, images: imageBuffers }), onImage);
   }
 
   async _imageOnce({

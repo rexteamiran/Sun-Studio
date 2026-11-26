@@ -1,3 +1,4 @@
+import { ImageBatchError, imageFailure, type ImageFailure } from "./batch";
 import {
   ProviderError,
   friendlyNetworkError,
@@ -351,64 +352,67 @@ export class KieClient implements ImageClient {
     return input;
   }
 
-  async _runTasks({
-    model,
-    prompt,
-    aspect,
-    imageSize,
-    imageUrls,
-    n,
-    onStage,
-  }: {
-    model: string;
-    prompt: string;
-    aspect?: string;
-    imageSize?: string;
-    imageUrls?: string[] | null;
-    n?: number;
-    onStage?: (s: string) => void;
+  async _runTasks({ model, prompt, aspect, imageSize, imageUrls, n, onStage, onImage, onTask }: {
+    model: string; prompt: string; aspect?: string; imageSize?: string; imageUrls?: string[] | null;
+    n?: number; onStage?: (s: string) => void;
+    onImage?: (base64: string) => Promise<void>; onTask?: (taskId: string) => void;
   }): Promise<string[]> {
-    const nTasks = Math.min(4, Math.max(1, Number(n) || 1));
-    if (onStage) onStage("Submitting " + (nTasks > 1 ? nTasks + " tasks" : "task") + " to kie.ai…");
+    const nTasks = Math.min(4, Math.max(1, Math.floor(Number(n) || 1)));
+    onStage?.("Submitting " + (nTasks > 1 ? nTasks + " tasks" : "task") + " to kie.ai...");
     const ids: string[] = [];
-    for (let i = 0; i < nTasks; i++) {
-      ids.push(await this.createTask(model, this.buildInput(model, { prompt, aspect, imageSize, imageUrls })));
+    const failures: ImageFailure[] = [];
+    for (let index = 0; index < nTasks; index++) {
+      try {
+        const id = await this.createTask(model, this.buildInput(model, { prompt, aspect, imageSize, imageUrls }));
+        ids.push(id);
+        onTask?.(id);
+      } catch (error) { failures.push(imageFailure(error, index)); break; }
     }
-    if (onStage) onStage("Queued on kie.ai… waiting for the result");
-    const urlLists = await Promise.all(ids.map((id) => this.pollTask(id, { onStage })));
+    onStage?.("Waiting for submitted kie.ai tasks...");
     const b64s: string[] = [];
-    for (const urls of urlLists) {
-      for (const u of urls) b64s.push(await fetchAsB64(u));
-    }
-    if (!b64s.length) throw new ProviderError('kie.ai returned no image data for "' + model + '".', 0);
+    await Promise.all(ids.map(async (id, index) => {
+      let urls: string[];
+      try { urls = await this.pollTask(id, { onStage }); }
+      catch (error) { failures.push(imageFailure(error, index, id)); return; }
+      for (const url of urls) {
+        try {
+          const base64 = await fetchAsB64(url);
+          b64s.push(base64);
+          await onImage?.(base64);
+        } catch (error) { failures.push(imageFailure(error, index, id)); }
+      }
+    }));
+    if (failures.length) throw new ImageBatchError(b64s, failures, ids);
+    if (!b64s.length) throw new ProviderError(`kie.ai returned no image data for "${model}".`, 0);
     return b64s;
   }
 
-  async generate({ prompt, model, aspect, imageSize, n, onStage }: { prompt: string; model: string; aspect?: string; imageSize?: string; n?: number; onStage?: (s: string) => void }): Promise<string[]> {
-    try {
-      return await this._runTasks({ model, prompt, aspect, imageSize, imageUrls: null, n, onStage });
-    } catch (e) {
-      throw friendlyNetworkError(e);
-    }
+  async generate({ prompt, model, aspect, imageSize, n, onStage, onImage, onTask }: GenerateParams): Promise<string[]> {
+    try { return await this._runTasks({ model, prompt, aspect, imageSize, imageUrls: null, n, onStage, onImage, onTask }); }
+    catch (e) { throw friendlyNetworkError(e); }
   }
 
   async edit({
     imageBuffers,
+    maskPng,
     prompt,
     model,
     aspect,
     imageSize,
     n,
     onStage,
+    onImage,
+    onTask,
   }: EditParams): Promise<string[]> {
     try {
+      if (maskPng) throw new ProviderError("This kie.ai integration requires a browser-composited reference instead of a separate edit mask.", 400);
       if (!Array.isArray(imageBuffers) || !imageBuffers.length) {
         throw new ProviderError("No image selected.", 0);
       }
       if (onStage) onStage("Uploading your image to kie.ai…");
       const urls: string[] = [];
       for (const img of imageBuffers) urls.push(await this.uploadImage(img));
-      return await this._runTasks({ model, prompt, aspect, imageSize, imageUrls: urls, n, onStage });
+      return await this._runTasks({ model, prompt, aspect, imageSize, imageUrls: urls, n, onStage, onImage, onTask });
     } catch (e) {
       throw friendlyNetworkError(e);
     }
