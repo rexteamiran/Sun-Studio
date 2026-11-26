@@ -1,6 +1,7 @@
 import fs from "fs";
 import fsp from "fs/promises";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { dataDir, ensureDataDir } from "./paths";
 import { getSecret, upsertSecret } from "./secrets";
 import {
@@ -70,10 +71,19 @@ function cleanId(id: unknown): string | null {
   return s.length >= 2 && s.length <= 40 ? s : null;
 }
 
+export class CustomProviderKeySaveError extends Error {
+  constructor(readonly providerId: string) {
+    super("The endpoint was saved, but its API key could not be saved. Save the key again in Settings; no connection was tested.");
+    this.name = "CustomProviderKeySaveError";
+  }
+}
+
 export class Store {
   file: string;
   data: StoreData;
   loaded = false;
+  private loading: Promise<void> | undefined;
+  private writes: Promise<void> = Promise.resolve();
 
   constructor() {
     this.file = path.join(dataDir(), "settings.json");
@@ -91,6 +101,11 @@ export class Store {
 
   async load(): Promise<void> {
     if (this.loaded) return;
+    if (!this.loading) this.loading = this.loadFromDisk().finally(() => { this.loading = undefined; });
+    await this.loading;
+  }
+
+  private async loadFromDisk(): Promise<void> {
     try {
       const raw = await fsp.readFile(this.file, "utf8");
       const j = JSON.parse(raw) as {
@@ -131,8 +146,10 @@ export class Store {
         ...s,
         models: { ...DEFAULT_SETTINGS.models, ...(s.models || {}) },
       } as StoreData["settings"];
-    } catch {
-      // first run — recommended default so the app is never empty
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT") {
+        throw new Error("Settings could not be loaded. The existing file was not changed.");
+      }
       this.data.enabledProviders = [DEFAULT_SETTINGS.provider];
     }
     // Repair stale/duplicate references in memory without rewriting user data on load.
@@ -147,18 +164,45 @@ export class Store {
     this.loaded = true;
   }
 
-  async persist(): Promise<void> {
+  /** One queue per Store instance; callbacks must not re-enter queued methods. */
+  private enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.writes.then(work);
+    this.writes = result.then(() => undefined, () => undefined);
+    return result;
+  }
+  private async writeSettings(data: StoreData): Promise<void> {
+    const body = JSON.stringify({ version: 5, provider: data.provider,
+      enabledProviders: data.enabledProviders, customProviders: data.customProviders,
+      extraModels: data.extraModels, settings: data.settings }, null, 2);
     await ensureDataDir();
-    const j = {
-      version: 5,
-      provider: this.data.provider,
-      enabledProviders: this.data.enabledProviders,
-      customProviders: this.data.customProviders,
-      extraModels: this.data.extraModels,
-      settings: this.data.settings,
-      // NOTE: API keys intentionally NOT here — they live in data/secrets.env (0600).
-    };
-    await fsp.writeFile(this.file, JSON.stringify(j, null, 2), "utf8");
+    const temporary = this.file + "." + randomUUID() + ".tmp";
+    let created = false;
+    try {
+      const handle = await fsp.open(temporary, "wx", 0o600);
+      created = true;
+      try { await handle.writeFile(body, "utf8"); await handle.sync(); }
+      finally { await handle.close(); }
+      // Never unlink the destination as a replacement fallback.
+      await fsp.rename(temporary, this.file);
+    } finally {
+      if (created) await fsp.unlink(temporary).catch(() => undefined);
+    }
+  }
+  private transaction<T>(change: (draft: StoreData) => T, afterCommit?: (result: T) => Promise<void>): Promise<T> {
+    return this.enqueue(async () => {
+      await this.load();
+      const draft = structuredClone(this.data);
+      const result = change(draft);
+      if (JSON.stringify(draft) !== JSON.stringify(this.data)) {
+        await this.writeSettings(draft);
+        this.data = draft;
+      }
+      if (afterCommit) await afterCommit(result);
+      return result;
+    });
+  }
+  async persist(): Promise<void> {
+    await this.enqueue(async () => { await this.load(); await this.writeSettings(structuredClone(this.data)); });
   }
 
   /** Known = registry built-in, catalog entry or saved custom endpoint. */
@@ -187,152 +231,108 @@ export class Store {
   }
 
   async setApiKey(providerId: string, key: string): Promise<void> {
-    await this.load();
-    const envName = this.keyEnvFor(providerId);
-    await upsertSecret(envName, String(key || "").trim() || null);
+    const id = String(providerId);
+    const value = String(key || "").trim() || null;
+    await this.enqueue(async () => {
+      await this.load();
+      if (!this.isKnown(id)) throw new Error("Unknown provider.");
+      const envName = this.keyEnvFor(id);
+      await upsertSecret(envName, value);
+    });
   }
-
-  // ---------- provider management (v0.0.11) ----------
-
-  /** Add a catalog provider to API CONNECTION. Idempotent. */
   async addProvider(id: string): Promise<void> {
-    await this.load();
-    const clean = cleanId(id);
-    if (!clean || !this.isKnown(clean)) throw new Error("Unknown provider.");
-    if (this.data.enabledProviders.includes(clean)) return;
-    this.data.enabledProviders.push(clean);
-    // sensible default model if none recorded yet
-    const meta = this.providerMeta(clean);
-    if (meta && !this.data.settings.models[clean]) {
-      this.data.settings.models[clean] = meta.defaultModel;
-    }
-    await this.persist();
+    await this.transaction((draft) => {
+      const clean = cleanId(id);
+      if (!clean || !this.isKnown(clean)) throw new Error("Unknown provider.");
+      if (draft.enabledProviders.includes(clean)) return;
+      draft.enabledProviders.push(clean);
+      const meta = this.providerMeta(clean);
+      if (meta && !draft.settings.models[clean]) draft.settings.models[clean] = meta.defaultModel;
+    });
   }
-
-  /** Remove a provider from API CONNECTION (its saved key stays in secrets.env). */
   async removeProvider(id: string): Promise<void> {
-    await this.load();
-    const clean = cleanId(id);
-    if (!clean) throw new Error("Unknown provider.");
-    if (!this.data.enabledProviders.includes(clean)) throw new Error("Provider is not added.");
-    if (this.data.enabledProviders.length <= 1) {
-      throw new Error("Keep at least one provider — add another before removing this one.");
-    }
-    this.data.enabledProviders = this.data.enabledProviders.filter((x) => x !== clean);
-    if (this.data.provider === clean) {
-      this.data.provider = this.data.enabledProviders[0];
-    }
-    await this.persist();
+    await this.transaction((draft) => {
+      const clean = cleanId(id);
+      if (!clean) throw new Error("Unknown provider.");
+      if (!draft.enabledProviders.includes(clean)) throw new Error("Provider is not added.");
+      if (draft.enabledProviders.length <= 1) throw new Error("Keep at least one provider - add another before removing this one.");
+      draft.enabledProviders = draft.enabledProviders.filter((value) => value !== clean);
+      if (draft.provider === clean) draft.provider = draft.enabledProviders[0];
+    });
   }
-
-  /** User-added model ids for one provider (any provider, built-in included). */
-  extraModelsFor(providerId: string): string[] {
-    return this.data.extraModels[providerId] || [];
-  }
-
-  /** Add one or more model ids to a provider's list. Returns the new list. */
+  extraModelsFor(providerId: string): string[] { return this.data.extraModels[providerId] || []; }
   async addModels(providerId: string, models: string[]): Promise<string[]> {
-    await this.load();
-    const clean = cleanId(providerId);
-    if (!clean || !this.isKnown(clean)) throw new Error("Unknown provider.");
-    const incoming = (Array.isArray(models) ? models : [])
-      .map((m) => String(m || "").trim())
-      .filter(Boolean)
-      .slice(0, 100);
-    if (!incoming.length) throw new Error("Type at least one model id.");
-    const existing = this.data.extraModels[clean] || [];
-    const merged = Array.from(new Set([...existing, ...incoming])).slice(0, 100);
-    this.data.extraModels[clean] = merged;
-    await this.persist();
-    return merged;
+    const incoming = (Array.isArray(models) ? models : []).map((model) => String(model || "").trim()).filter(Boolean).slice(0, 100);
+    return this.transaction((draft) => {
+      const clean = cleanId(providerId);
+      if (!clean || !this.isKnown(clean)) throw new Error("Unknown provider.");
+      if (!incoming.length) throw new Error("Type at least one model id.");
+      const merged = Array.from(new Set([...(draft.extraModels[clean] || []), ...incoming])).slice(0, 100);
+      draft.extraModels[clean] = merged;
+      return [...merged];
+    });
   }
-
-  /** Remove a user-added model id from a provider. */
   async removeModel(providerId: string, model: string): Promise<string[]> {
-    await this.load();
-    const clean = cleanId(providerId);
-    const m = String(model || "").trim();
-    if (!clean || !m) throw new Error("Unknown model.");
-    const existing = this.data.extraModels[clean] || [];
-    this.data.extraModels[clean] = existing.filter((x) => x !== m);
-    await this.persist();
-    return this.data.extraModels[clean];
+    return this.transaction((draft) => {
+      const clean = cleanId(providerId);
+      const value = String(model || "").trim();
+      if (!clean || !value) throw new Error("Unknown model.");
+      draft.extraModels[clean] = (draft.extraModels[clean] || []).filter((item) => item !== value);
+      return [...draft.extraModels[clean]];
+    });
   }
-
-  // ---------- custom (BYO endpoint) providers ----------
-
-  /** Create or update a custom OpenAI-compatible provider. */
-  async saveCustomProvider(p: {
-    id?: string;
-    label: string;
-    baseUrl: string;
-    models?: string[];
-  }): Promise<string> {
-    await this.load();
+  async saveCustomProvider(p: { id?: string; label: string; baseUrl: string; models?: string[] }, apiKey?: string): Promise<string> {
     const label = String(p.label || "").trim();
-    const baseUrl = String(p.baseUrl || "")
-      .trim()
-      .replace(/\/+$/, "");
+    const baseUrl = String(p.baseUrl || "").trim().replace(/\/+$/, "");
+    const requestedId = p.id ? String(p.id) : null;
+    const key = typeof apiKey === "string" ? apiKey.trim() : "";
     if (!label) throw new Error("Provider name is required.");
-    if (!/^https?:\/\/.+/i.test(baseUrl)) throw new Error("Base URL must start with http:// or https://");
-    const models = (Array.isArray(p.models) ? p.models : [])
-      .map((m) => String(m || "").trim())
-      .filter(Boolean)
-      .slice(0, 200);
-
-    let id = p.id ? String(p.id) : null;
-    let entry = id ? this.data.customProviders.find((c) => c.id === id) : null;
-    if (id && !entry) throw new Error("Custom provider not found.");
-    if (!entry) {
-      id = "custom-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      entry = { id, label, baseUrl, keyEnv: customKeyEnv(baseUrl), models };
-      this.data.customProviders.push(entry);
-    } else {
-      entry.label = label;
-      entry.baseUrl = baseUrl;
-      entry.keyEnv = customKeyEnv(baseUrl); // re-hash if the URL changed (Hermes pattern)
-      entry.models = models;
+    let parsed: URL;
+    try { parsed = new URL(baseUrl); } catch { throw new Error("Invalid provider base URL."); }
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
+      throw new Error("Use an HTTP or HTTPS base URL without credentials, a query or a fragment.");
     }
-    if (!this.data.enabledProviders.includes(id!)) this.data.enabledProviders.push(id!);
-    if (!this.data.settings.models[id!]) {
-      this.data.settings.models[id!] = models[0] || "gpt-image-1";
-    }
-    await this.persist();
-    return entry.id;
+    const models = (Array.isArray(p.models) ? p.models : []).map((model) => String(model || "").trim()).filter(Boolean).slice(0, 200);
+    const saved = await this.transaction((draft) => {
+      let entry = requestedId ? draft.customProviders.find((item) => item.id === requestedId) : undefined;
+      if (requestedId && !entry) throw new Error("Custom provider not found.");
+      if (!entry) {
+        let id: string;
+        do { id = "custom-" + randomUUID().replace(/-/g, ""); } while (this.isKnown(id));
+        entry = { id, label, baseUrl, keyEnv: customKeyEnv(baseUrl), models };
+        draft.customProviders.push(entry);
+      } else {
+        entry.label = label; entry.baseUrl = baseUrl;
+        entry.keyEnv = customKeyEnv(baseUrl); entry.models = models;
+      }
+      if (!draft.enabledProviders.includes(entry.id)) draft.enabledProviders.push(entry.id);
+      if (!draft.settings.models[entry.id]) draft.settings.models[entry.id] = models[0] || "gpt-image-1";
+      return { id: entry.id, keyEnv: entry.keyEnv };
+    }, async (entry) => {
+      if (!key) return;
+      try { await upsertSecret(entry.keyEnv, key); }
+      catch { throw new CustomProviderKeySaveError(entry.id); }
+    });
+    return saved.id;
   }
-
   async deleteCustomProvider(id: string): Promise<void> {
-    await this.load();
-    if (!this.data.customProviders.some((c) => c.id === id)) {
-      throw new Error("Custom provider not found.");
-    }
-    const customProviders = this.data.customProviders.filter((c) => c.id !== id);
-    const enabledProviders = this.data.enabledProviders.filter((x) => x !== id);
-    if (!enabledProviders.length) enabledProviders.push(DEFAULT_SETTINGS.provider);
-    const provider = enabledProviders.includes(this.data.provider)
-      ? this.data.provider
-      : enabledProviders[0];
-    const previous = this.data;
-    this.data = { ...previous, customProviders, enabledProviders, provider };
-    try {
-      await this.persist();
-    } catch (error) {
-      this.data = previous;
-      throw error;
-    }
+    await this.transaction((draft) => {
+      if (!draft.customProviders.some((entry) => entry.id === id)) throw new Error("Custom provider not found.");
+      draft.customProviders = draft.customProviders.filter((entry) => entry.id !== id);
+      draft.enabledProviders = draft.enabledProviders.filter((value) => value !== id);
+      if (!draft.enabledProviders.length) draft.enabledProviders.push(DEFAULT_SETTINGS.provider);
+      if (!draft.enabledProviders.includes(draft.provider)) draft.provider = draft.enabledProviders[0];
+    });
   }
-
   async update(partial: Partial<StoreData["settings"]> & { provider?: string }): Promise<void> {
-    await this.load();
-    const p = partial || {};
-    const knownIds = this.providerIds();
-    if (p.provider && knownIds.includes(p.provider)) this.data.provider = p.provider;
-    const s = this.data.settings;
-    if (p.models && typeof p.models === "object") s.models = { ...s.models, ...p.models };
-    for (const k of ["size", "quality", "imageSize", "theme"] as const) {
-      if (k in p) (s as Record<string, unknown>)[k] = p[k];
-    }
-    await this.persist();
+    const p = structuredClone(partial || {});
+    await this.transaction((draft) => {
+      if (p.provider && draft.enabledProviders.includes(p.provider)) draft.provider = p.provider;
+      if (p.models && typeof p.models === "object" && !Array.isArray(p.models)) draft.settings.models = { ...draft.settings.models, ...p.models };
+      for (const key of ["size", "quality", "imageSize", "theme"] as const) {
+        if (key in p) (draft.settings as Record<string, unknown>)[key] = p[key];
+      }
+    });
   }
 
   providerMeta(providerId: string): ProviderMeta | null {
