@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Logo from "./Logo";
-import { api, type Boot, type ProviderInfo } from "./api";
+import { api, ApiError, type Boot, type ProviderInfo } from "./api";
 import { ModelPicker, Spinner } from "./ui";
 import type { UpdateState } from "./useUpdater";
 import type { Toast } from "./Studio";
@@ -53,6 +53,9 @@ export default function SettingsView({
   const [cpModels, setCpModels] = useState("");
   const [cpKey, setCpKey] = useState("");
   const [cpBusy, setCpBusy] = useState(false);
+  const cpLock = useRef(false);
+  const [cpSavedId, setCpSavedId] = useState<string | null>(null);
+  const [cpStatus, setCpStatus] = useState("");
 
   const saveKey = async (p: ProviderInfo) => {
     const key = (keyDraft[p.id] || "").trim();
@@ -64,7 +67,7 @@ export default function SettingsView({
       await api.saveKey(p.id, key);
       setKeyDraft((d) => ({ ...d, [p.id]: "" }));
       await reload();
-      toast(`Key saved → ${p.keyEnv} (data/secrets.env, mode 0600)`, "ok");
+      toast("Key saved for this provider. No connection was tested.", "ok");
     } catch (e) {
       toast((e as Error).message, "error");
     }
@@ -101,7 +104,7 @@ export default function SettingsView({
     try {
       await api.removeProvider(p.id);
       await reload();
-      toast(`${p.label} removed. Its saved key stays in secrets.env.`, "ok");
+      toast(`${p.label} removed. Its saved key is retained locally.`, "ok");
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
@@ -152,23 +155,30 @@ export default function SettingsView({
   };
 
   const saveCustom = async () => {
+    if (cpLock.current) return;
+    if (cpSavedId && !cpKey.trim()) { toast("Enter the key to save for this endpoint.", "error"); return; }
+    cpLock.current = true;
     setCpBusy(true);
     try {
-      const models = cpModels.split(",").map((m) => m.trim()).filter(Boolean);
-      await api.custom("save", {
-        provider: { label: cpLabel, baseUrl: cpUrl, models, key: cpKey },
-      });
-      setCpLabel("");
-      setCpUrl("");
-      setCpModels("");
-      setCpKey("");
-      toast("Custom endpoint added — its key env is derived from the URL hash.", "ok");
+      if (cpSavedId) {
+        await api.saveKey(cpSavedId, cpKey.trim());
+      } else {
+        const models = cpModels.split(",").map((model) => model.trim()).filter(Boolean);
+        await api.custom("save", { provider: { label: cpLabel, baseUrl: cpUrl, models, key: cpKey } });
+      }
+      setCpStatus("Connection settings saved. No connection was tested.");
+      setCpSavedId(null);
+      setCpLabel(""); setCpUrl(""); setCpModels(""); setCpKey("");
+      toast("Connection settings saved. No connection was tested.", "ok");
       await reload();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setCpBusy(false);
-    }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The connection settings could not be confirmed.";
+      if (error instanceof ApiError && error.status === 409 && error.endpointSaved && error.providerId) {
+        setCpSavedId(error.providerId);
+        setCpStatus("Endpoint saved. No connection was tested. " + message);
+      } else { setCpStatus(message); }
+      toast(message, "error", 10000);
+    } finally { cpLock.current = false; setCpBusy(false); }
   };
 
   const deleteCustom = async (id: string) => {
@@ -382,7 +392,7 @@ export default function SettingsView({
                       provider={p}
                       models={p.models}
                       value={boot.settings.models[p.id] || p.defaultModel}
-                      onChange={(id) => api.updateSettings({ models: { [p.id]: id } }).then(reload, () => {})}
+                      onChange={(id) => api.updateSettings({ models: { [p.id]: id } }).then(reload).catch((error: unknown) => toast(error instanceof Error ? error.message : "The model could not be saved.", "error"))}
                     />
                   </div>
                   {p.keyDocs && (
@@ -505,22 +515,23 @@ export default function SettingsView({
           base URL hash, exactly like Hermes <span className="mono-value">custom_providers</span>.
         </p>
 
+        {cpStatus && <p role="status" aria-live="polite" className="card p-3 text-[12px] break-words">{cpStatus}</p>}
         <div className="card p-4 grid md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-2">
             <span className="mono-label">Name</span>
-            <input className="field" placeholder="My proxy" value={cpLabel} onChange={(e) => setCpLabel(e.target.value)} />
+            <input className="field" placeholder="My proxy" disabled={cpBusy || !!cpSavedId} value={cpLabel} onChange={(e) => setCpLabel(e.target.value)} />
             <span className="mono-label">Base URL</span>
-            <input className="field mono-value" placeholder="https://example.com/v1" value={cpUrl} onChange={(e) => setCpUrl(e.target.value)} />
+            <input className="field mono-value" placeholder="https://example.com/v1" disabled={cpBusy || !!cpSavedId} value={cpUrl} onChange={(e) => setCpUrl(e.target.value)} />
           </div>
           <div className="flex flex-col gap-2">
             <span className="mono-label">Model ids (comma-separated)</span>
-            <input className="field mono-value" placeholder="gpt-image-1, my-model" value={cpModels} onChange={(e) => setCpModels(e.target.value)} />
+            <input className="field mono-value" placeholder="gpt-image-1, my-model" disabled={cpBusy || !!cpSavedId} value={cpModels} onChange={(e) => setCpModels(e.target.value)} />
             <span className="mono-label">API key (optional, saved to secrets)</span>
-            <input className="field" type="password" placeholder="sk-…" value={cpKey} onChange={(e) => setCpKey(e.target.value)} />
+            <input className="field" type="password" placeholder="sk-…" disabled={cpBusy} value={cpKey} onChange={(e) => setCpKey(e.target.value)} />
           </div>
           <div className="md:col-span-2 flex justify-end">
-            <button className="btn" disabled={cpBusy || !cpLabel || !cpUrl} onClick={() => saveCustom()}>
-              {cpBusy && <Spinner />} Add endpoint
+            <button className="btn" disabled={cpBusy || (cpSavedId ? !cpKey.trim() : !cpLabel.trim() || !cpUrl.trim())} onClick={() => void saveCustom()}>
+              {cpBusy && <Spinner />} {cpSavedId ? "Save key for saved endpoint" : "Add endpoint"}
             </button>
           </div>
         </div>

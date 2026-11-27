@@ -46,6 +46,8 @@ jobs:
         run: node --import tsx --test scripts/test-image-contracts.test.ts
       - name: Test atomic store commands and endpoint-key binding
         run: node --import tsx --test scripts/test-store.test.ts
+      - name: Test browser API contracts with mock responses
+        run: node --import tsx --test scripts/test-browser-api.test.ts
       - name: Test updater with mocked Electron
         run: npm run test:updater
       - name: Typecheck maintained source

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { api, type Boot, type ProviderInfo } from "./api";
+import { api, operationMessage, operationErrorMessage, validOption, type Boot, type ProviderInfo } from "./api";
 import { ASPECT_LABELS, Field, ModelPicker, Select, Spinner } from "./ui";
 import type { Toast } from "./Studio";
 
@@ -23,14 +23,9 @@ function drawStrokes(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const s of strokes) {
-    ctx.globalCompositeOperation = mode === "erase" ? "source-over" : "source-over";
-    if (mode === "erase") {
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-    } else {
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-    }
+    ctx.globalCompositeOperation = mode === "erase" ? "destination-out" : "source-over";
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
     ctx.lineWidth = s.size;
     ctx.beginPath();
     s.points.forEach((p, i) => {
@@ -62,12 +57,15 @@ export default function EditView({
 }) {
   const [images, setImages] = useState<{ id: string; dataUrl: string }[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [aspect, setAspect] = useState(boot.settings.size);
-  const [quality, setQuality] = useState(boot.settings.quality);
-  const [imageSize, setImageSize] = useState(boot.settings.imageSize);
+  const [aspectDraft, setAspect] = useState(boot.settings.size);
+  const [qualityDraft, setQuality] = useState(boot.settings.quality);
+  const [imageSizeDraft, setImageSize] = useState(boot.settings.imageSize);
   const [background, setBackground] = useState("auto");
   const [n, setN] = useState(1);
   const [busy, setBusy] = useState(false);
+  const running = useRef(false);
+  const [operationStatus, setOperationStatus] = useState("");
+  const [operationFailed, setOperationFailed] = useState(false);
   const [paintMode, setPaintMode] = useState(false);
   const [brush, setBrush] = useState(24);
   const [results, setResults] = useState<{ id: string; url: string }[]>([]);
@@ -79,6 +77,9 @@ export default function EditView({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const model = boot.settings.models[meta.id] || meta.defaultModel;
+  const aspect = validOption(aspectDraft, meta.aspects, boot.settings.size);
+  const quality = validOption(qualityDraft, meta.qualities, boot.settings.quality);
+  const imageSize = validOption(imageSizeDraft, meta.resolutions, boot.settings.imageSize);
   const noMaskProvider = meta.type === "Gemini API" || meta.type === "AI marketplace · task API";
 
   const pickFiles = (files: FileList | null) => {
@@ -151,8 +152,7 @@ export default function EditView({
     if (!ctx) return null;
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = "destination-out";
-    drawStrokes(ctx, strokesRef.current, w, h, "#000000", "paint");
+    drawStrokes(ctx, strokesRef.current, w, h, "#000000", "erase");
     ctx.globalCompositeOperation = "source-over";
     return c.toDataURL("image/png");
   };
@@ -177,6 +177,7 @@ export default function EditView({
     });
 
   const run = async () => {
+    if (running.current) return;
     if (!prompt.trim()) {
       toast("Write a prompt first.", "error");
       return;
@@ -189,6 +190,7 @@ export default function EditView({
       toast(`No ${meta.label} API key — add it in Settings → API connection.`, "error");
       return;
     }
+    running.current = true;
     setBusy(true);
     try {
       let payloadImages: string[] = images.map((i) => i.dataUrl);
@@ -217,16 +219,25 @@ export default function EditView({
         n,
       });
       setResults(r.items);
-      toast("Saved to Gallery — " + r.items.length + " image" + (r.items.length > 1 ? "s" : "") + ".", "ok");
+      const message = operationMessage(r);
+      const partial = !!r.partial || !!r.failures?.length;
+      setOperationStatus(message);
+      setOperationFailed(partial);
+      toast(message, partial ? "error" : "ok", 12000);
     } catch (e) {
-      toast((e as Error).message, "error", 8000);
+      const message = operationErrorMessage(e);
+      setOperationStatus(message);
+      setOperationFailed(true);
+      toast(message, "error", 12000);
     } finally {
+      running.current = false;
       setBusy(false);
     }
   };
 
   return (
     <div className="flex flex-col gap-6">
+      {operationStatus && <p role={operationFailed ? "alert" : "status"} aria-live={operationFailed ? "assertive" : "polite"} className="card p-4 text-[12px] whitespace-pre-wrap break-words">{operationStatus}</p>}
       <section className="card p-5 flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <span className="mono-label">{allowMask ? "Source image · paint to repaint an area" : "Source image"}</span>
@@ -307,7 +318,7 @@ export default function EditView({
             </button>
             {strokeCount > 0 && noMaskProvider && (
               <span className="text-[12px] text-[var(--muted)]">
-                {meta.label} has no mask input — painted areas will be covered with a magenta marker and replaced per your prompt.
+                {meta.label} has no separate mask input. Painted areas become magenta in the reference image; describe the intended change in your prompt. Exact preservation is not guaranteed.
               </span>
             )}
           </div>
@@ -361,7 +372,7 @@ export default function EditView({
             <span className="mono-label">{allowMask ? "How masking works" : "How restyle works"}</span>
             <p className="text-[12px] leading-relaxed" style={{ color: "var(--muted)" }}>
               {allowMask
-                ? "Paint over the area you want changed, then describe the change — everything outside the mask stays untouched."
+                ? "Paint over the area you want changed, then describe the change — the selected provider interprets the mask; exact preservation outside the region is not guaranteed."
                 : "Add one or more reference images and describe the new look; the model keeps the composition while applying your style."}
             </p>
           </div>

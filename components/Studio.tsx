@@ -73,6 +73,8 @@ export interface Toast {
 
 export default function Studio() {
   const [boot, setBoot] = useState<Boot | null>(null);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootLoading, setBootLoading] = useState(true);
   const [view, setView] = useState<View>("create");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [provOpen, setProvOpen] = useState(false);
@@ -87,11 +89,13 @@ export default function Studio() {
   }, []);
 
   const reload = useCallback(async () => {
-    try {
-      setBoot(await api.bootstrap());
-    } catch (e) {
-      toast((e as Error).message, "error");
-    }
+    setBootLoading(true);
+    try { setBoot(await api.bootstrap()); setBootError(null); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "The local server could not be reached.";
+      setBootError(message);
+      toast(message, "error");
+    } finally { setBootLoading(false); }
   }, [toast]);
 
   useEffect(() => {
@@ -118,11 +122,12 @@ export default function Studio() {
   };
 
   const setTheme = async (theme: string) => {
+    const previousTheme = document.documentElement.dataset.theme || "studio";
     document.documentElement.dataset.theme = theme;
-    try {
-      setBoot(await api.updateSettings({ theme }));
-    } catch {
-      /* keep visual change anyway */
+    try { setBoot(await api.updateSettings({ theme })); }
+    catch (error) {
+      document.documentElement.dataset.theme = previousTheme;
+      toast(error instanceof Error ? error.message : "The theme could not be saved.", "error");
     }
   };
 
@@ -139,15 +144,30 @@ export default function Studio() {
 
   if (!boot) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-[13px]" style={{ color: "var(--muted)" }}>
-          Starting Sun Studio…
+      <main className="h-screen flex flex-col">
+        <TitleBar version="" />
+        <div className="flex-1 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-[13px]" style={{ color: "var(--muted)" }}>
+          {bootError ? <p role="alert">Could not load Sun Studio: {bootError}</p> : <p role="status">Starting Sun Studio...</p>}
+          {bootError && <button className="btn" disabled={bootLoading} onClick={() => void reload()}>{bootLoading ? "Retrying..." : "Retry"}</button>}
+        </div>
         </div>
       </main>
     );
   }
 
-  const meta: ProviderInfo = boot.providers[boot.provider] || Object.values(boot.providers)[0];
+  const meta: ProviderInfo | undefined = boot.providers[boot.provider];
+  if (!meta) {
+    return <main className="h-screen flex flex-col">
+      <TitleBar version={boot.version} />
+      <div className="flex-1 overflow-y-auto p-6">
+        <p role="alert" className="mb-3">No provider is available. Add a provider in Settings or reload the local settings.</p>
+        {bootError && <p role="alert">{bootError}</p>}
+        <button className="btn-ghost mb-4" disabled={bootLoading} onClick={() => void reload()}>Reload settings</button>
+        <SettingsView boot={boot} toast={toast} reload={reload} setTheme={setTheme} updateState={updateState} updatesAvailable={updatesAvailable} checkUpdate={checkUpdate} installUpdate={installUpdate} openReleases={openReleases} />
+      </div>
+    </main>;
+  }
   const providerIds = Object.keys(boot.providers);
 
   const updateChip = () => {
@@ -289,7 +309,7 @@ export default function Studio() {
               </div>
             </div>
             {view !== "settings" && (
-              <button className="pill shrink-0 app-no-drag" onClick={() => setView("settings")} title={meta.hasKey ? "Key connected — manage in Settings" : "No key saved — add it in Settings"}>
+              <button className="pill shrink-0 app-no-drag" onClick={() => setView("settings")} title={meta.hasKey ? "Key saved - manage in Settings" : "No key saved — add it in Settings"}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                   <path d="M13 2L4.5 13.5H11L9.5 22 19 10h-6.5L13 2z" strokeLinejoin="round" />
                 </svg>
@@ -301,15 +321,12 @@ export default function Studio() {
           {/* views */}
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-5xl mx-auto px-6 pt-7 pb-16">
-              {view === "create" && <CreateView boot={boot} meta={meta} toast={toast} reload={reload} />}
-              {view === "edit" && (
-                <EditView boot={boot} meta={meta} toast={toast} allowMask key={"edit-" + boot.provider} />
-              )}
-              {view === "restyle" && (
-                <EditView boot={boot} meta={meta} toast={toast} allowMask={false} key={"restyle-" + boot.provider} />
-              )}
+              {bootError && <p role="alert">Settings could not be refreshed: {bootError} <button className="btn-ghost" disabled={bootLoading} onClick={() => void reload()}>Retry</button></p>}
+              <div hidden={view !== "create"}><CreateView boot={boot} meta={meta} toast={toast} reload={reload} active={view === "create"} /></div>
+              <div hidden={view !== "edit"}><EditView boot={boot} meta={meta} toast={toast} allowMask /></div>
+              <div hidden={view !== "restyle"}><EditView boot={boot} meta={meta} toast={toast} allowMask={false} /></div>
               {view === "gallery" && <GalleryView toast={toast} refreshSignal={boot.version} />}
-              {view === "settings" && <SettingsView boot={boot} toast={toast} reload={reload} setTheme={setTheme} updateState={updateState} updatesAvailable={updatesAvailable} checkUpdate={checkUpdate} installUpdate={installUpdate} openReleases={openReleases} />}
+              <div hidden={view !== "settings"}><SettingsView boot={boot} toast={toast} reload={reload} setTheme={setTheme} updateState={updateState} updatesAvailable={updatesAvailable} checkUpdate={checkUpdate} installUpdate={installUpdate} openReleases={openReleases} /></div>
             </div>
           </div>
 
@@ -320,7 +337,7 @@ export default function Studio() {
                 Bring your own key — private by design
               </span>
               <span className="text-[11px] tracking-wide" style={{ color: "var(--muted)" }}>
-                {meta.label}{meta.hasKey ? " · connected" : " · add a key in Settings"}
+                {meta.label}{meta.hasKey ? " · key saved" : " · add a key in Settings"}
               </span>
             </div>
           </footer>
