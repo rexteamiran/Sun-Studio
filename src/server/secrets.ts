@@ -37,8 +37,9 @@ function parse(content: string): Record<string, string> {
 export function readSecrets(): Record<string, string> {
   try {
     return parse(fs.readFileSync(secretsFile(), "utf8"));
-  } catch {
-    return {};
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return {};
+    throw new Error("Credential storage could not be read. Existing data was kept.");
   }
 }
 
@@ -49,12 +50,19 @@ export function getSecret(key: string): string | null {
 
 /** Insert or remove (value = null) one KEY=VALUE line, keeping 0600 perms. */
 export async function upsertSecret(key: string, value: string | null): Promise<void> {
+  if (!/^SUN_KEY_[A-Za-z0-9_]{1,128}$/.test(key) ||
+      (value !== null && (typeof value !== "string" || value.length > 16384 || /[\x00-\x1f\x7f]/.test(value)))) {
+    throw new Error("The credential name or value is invalid.");
+  }
   const file = secretsFile();
   await ensureDataDir();
   let lines: string[] = [];
   try {
     lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT") {
+      throw new Error("Credential storage could not be read. Existing data was kept.");
+    }
     lines = [];
   }
   const kept = lines.filter(

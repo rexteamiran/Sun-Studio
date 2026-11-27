@@ -1,5 +1,27 @@
 # Architecture
 
+## Maintained source and generated packaging payload
+
+Maintain application code in `electron/`, `app/`, `components/`, and `src/server/`.
+The root `server/` directory is a generated Electron packaging payload, not a second
+application source tree. `npm run build` produces `.next/standalone`; the subsequent
+`npm run prepare:electron` runs `scripts/prepare-electron.mjs`, which replaces `server/`
+from that standalone output and copies `.next/static` to `server/.next/static`.
+The expected entry point is `server/server.js`. The stylesheet/client asset copy is
+required for the packaged UI. Preserve `asar: false` and the `server/**/*` packaging
+selection in `electron-builder.yml`.
+
+The root payload is excluded from automatic TypeScript source discovery and ignored
+for newly untracked files. Existing tracked payload copies, including nested `server/`
+content, remain untouched: ignore rules do not remove tracked files. Do not manually
+patch those generated copies, relocate them, or treat them as maintained implementations.
+Removing tracked artifacts requires a separately reviewed cleanup with reproducible
+build/package evidence. This distinction alone is not proof that packaging passes.
+
+The sections below contain historical runtime descriptions; security, migration, and
+provider changes require their own current-revision evidence and regression checks.
+
+
 Since v0.0.8 the product ships as a **minimal Electron shell around the Next.js studio** (that
 was the v0.0.7 web app, unchanged). The UI is a React client, Next.js route handlers are the only
 door to the server layer, and the provider clients talk to the outside world. The UI never sees a

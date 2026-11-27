@@ -217,6 +217,10 @@ export class OpenAICompatibleClient implements ImageClient {
     background,
   }: EditParams): Promise<string[]> {
     try {
+      if (!images.length) throw new ProviderError("No image selected.", 400);
+      if (String(model).startsWith("dall-e-3")) {
+        throw new ProviderError("DALL-E 3 does not support image editing. Select an edit-capable model explicitly.", 400);
+      }
       const isDallE3 = String(model).startsWith("dall-e-3");
       const fd = new FormData();
       fd.append("model", model);
@@ -224,13 +228,13 @@ export class OpenAICompatibleClient implements ImageClient {
       for (let i = 0; i < images.length; i++) {
         const img = images[i];
         const buf = Buffer.from(img.data, "base64");
-        const isJpg = (img.mime || "").includes("jpeg");
+        const mime = String(img.mime || "image/png").toLowerCase();
+        if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) {
+          throw new ProviderError("Unsupported input image type. Use PNG, JPEG, or WebP.", 400);
+        }
+        const extension = mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
         const field = images.length > 1 ? "image[]" : "image";
-        fd.append(
-          field,
-          new Blob([new Uint8Array(buf)], { type: isJpg ? "image/jpeg" : "image/png" }),
-          `image${i}${isJpg ? ".jpg" : ".png"}`
-        );
+        fd.append(field, new Blob([new Uint8Array(buf)], { type: mime }), `image${i}.${extension}`);
       }
       if (isDallE3) {
         // dall-e-3 has no edits endpoint; the server rejects with a clear message

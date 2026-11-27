@@ -150,11 +150,12 @@ export class OpenRouterClient implements ImageClient {
     }
   }
 
-  async edit({ imageBuffers, prompt, model, aspect, imageSize, n }: EditParams): Promise<string[]> {
+  async edit({ imageBuffers, maskPng, prompt, model, aspect, imageSize, n }: EditParams): Promise<string[]> {
     try {
       if (!Array.isArray(imageBuffers) || !imageBuffers.length) {
         throw new ProviderError("No image selected.", 0);
       }
+      if (maskPng) throw new ProviderError("This OpenRouter integration does not support a separate edit mask.", 400);
       const body: Record<string, unknown> = {
         model,
         prompt: String(prompt || ""),

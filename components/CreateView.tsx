@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { api, type Boot, type ProviderInfo } from "./api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api, operationMessage, operationErrorMessage, validOption, type Boot, type ProviderInfo } from "./api";
 import { ASPECT_LABELS, QUALITY_LABELS, RESOLUTION_LABELS, Field, ModelPicker, Select, Spinner } from "./ui";
 import type { Toast } from "./Studio";
 
@@ -15,26 +15,34 @@ export default function CreateView({
   meta,
   toast,
   reload,
+  active = true,
 }: {
   boot: Boot;
   meta: ProviderInfo;
   toast: (m: string, t?: Toast["type"], ms?: number) => void;
   reload: () => Promise<void>;
+  active?: boolean;
 }) {
   const [prompt, setPrompt] = useState("");
-  const [aspect, setAspect] = useState(boot.settings.size);
-  const [quality, setQuality] = useState(boot.settings.quality);
-  const [imageSize, setImageSize] = useState(boot.settings.imageSize);
+  const [aspectDraft, setAspect] = useState(boot.settings.size);
+  const [qualityDraft, setQuality] = useState(boot.settings.quality);
+  const [imageSizeDraft, setImageSize] = useState(boot.settings.imageSize);
   const [background, setBackground] = useState("auto");
   const [n, setN] = useState(1);
   const [busy, setBusy] = useState(false);
+  const running = useRef(false);
+  const [operationStatus, setOperationStatus] = useState("");
+  const [operationFailed, setOperationFailed] = useState(false);
   const [results, setResults] = useState<ResultItem[]>([]);
 
   const models = useMemo(() => meta.models, [meta]);
   const model = boot.settings.models[meta.id] || meta.defaultModel;
+  const aspect = validOption(aspectDraft, meta.aspects, boot.settings.size);
+  const quality = validOption(qualityDraft, meta.qualities, boot.settings.quality);
+  const imageSize = validOption(imageSizeDraft, meta.resolutions, boot.settings.imageSize);
 
   const generate = async () => {
-    if (busy) return;
+    if (running.current) return;
     if (!prompt.trim()) {
       toast("Write a prompt first.", "error");
       return;
@@ -43,6 +51,7 @@ export default function CreateView({
       toast(`No ${meta.label} API key — add it in Settings → API connection.`, "error");
       return;
     }
+    running.current = true;
     setBusy(true);
     try {
       const r = await api.generate({
@@ -55,17 +64,26 @@ export default function CreateView({
         n,
       });
       setResults(r.items);
-      toast("Saved to Gallery — " + r.items.length + " image" + (r.items.length > 1 ? "s" : "") + ".", "ok");
+      const message = operationMessage(r);
+      const partial = !!r.partial || !!r.failures?.length;
+      setOperationStatus(message);
+      setOperationFailed(partial);
+      toast(message, partial ? "error" : "ok", 12000);
       reload();
     } catch (e) {
-      toast((e as Error).message, "error", 8000);
+      const message = operationErrorMessage(e);
+      setOperationStatus(message);
+      setOperationFailed(true);
+      toast(message, "error", 12000);
     } finally {
+      running.current = false;
       setBusy(false);
     }
   };
 
   // Ctrl/Cmd+Enter generates from anywhere on the view
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
@@ -78,6 +96,7 @@ export default function CreateView({
 
   return (
     <div className="flex flex-col gap-6">
+      {operationStatus && <p role={operationFailed ? "alert" : "status"} aria-live={operationFailed ? "assertive" : "polite"} className="card p-4 text-[12px] whitespace-pre-wrap break-words">{operationStatus}</p>}
       <section className="card p-5 flex flex-col gap-5">
         <Field label="Prompt">
           <textarea
@@ -95,7 +114,7 @@ export default function CreateView({
               models={models}
               value={model}
               onChange={(id) => {
-                api.updateSettings({ models: { [meta.id]: id } }).then(() => reload(), () => {});
+                api.updateSettings({ models: { [meta.id]: id } }).then(() => reload()).catch((error: unknown) => toast(error instanceof Error ? error.message : "The model could not be saved.", "error"));
               }}
             />
           </Field>
@@ -209,7 +228,7 @@ export default function CreateView({
           <div className="text-[14px] font-semibold">Your results will appear here</div>
           <div className="text-[12.5px] max-w-sm" style={{ color: "var(--muted)" }}>
             Write a prompt above and press Generate. Everything you create is stored locally in the
-            Gallery tab — nothing is uploaded anywhere else.
+            Gallery tab. Prompts and required image inputs are sent to the selected provider.
           </div>
         </section>
       )}

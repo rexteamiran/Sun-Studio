@@ -4,43 +4,43 @@ import { KieClient } from "./providers/kie";
 import { OpenRouterClient } from "./providers/openrouter";
 import { StabilityClient } from "./providers/stability";
 import { PROVIDER_CATALOG, catalogToMeta } from "./providers/registry";
-import type { ImageClient, ProviderMeta } from "./providers/types";
+import { ProviderError, type ImageClient, type ProviderMeta } from "./providers/types";
 import type { Store } from "./store";
 
-/**
- * One client instance per provider, created against the current registry meta
- * and a store-backed key getter (fresh secrets.env read on every call).
- *
- * Routing is by `meta.type` (single source of truth, set by the registry /
- * catalog). Catalog providers without a dedicated client (fal, together, …)
- * run through the OpenAI-compatible client — that is what their `type` says.
- */
-const clients: Record<string, ImageClient> = {};
-
+interface CachedClient { store: Store; fingerprint: string; client: ImageClient; }
+const clients = new Map<string, CachedClient>();
+function endpointIdentity(meta: ProviderMeta): string {
+  return JSON.stringify([meta.id, meta.type, meta.baseUrl || "", meta.keyEnv]);
+}
 export function getClient(providerId: string, store: Store, meta: ProviderMeta): ImageClient {
-  if (clients[providerId]) return clients[providerId];
-  const getApiKey = () => store.getApiKey(providerId);
+  const fingerprint = endpointIdentity(meta);
+  const cached = clients.get(providerId);
+  if (cached && cached.store === store && cached.fingerprint === fingerprint) return cached.client;
+  const getApiKey = () => {
+    const current = store.providerMeta(providerId);
+    // Protect held clients and stale route metadata, not only cache lookup.
+    if (!current || endpointIdentity(current) !== fingerprint) {
+      throw new ProviderError("The provider connection changed. Select the current connection and try again.", 409);
+    }
+    return store.getApiKey(providerId);
+  };
+  let client: ImageClient;
   if (meta.type === "Gemini API") {
-    clients[providerId] = new GoogleClient({ getApiKey, baseUrl: meta.baseUrl });
+    client = new GoogleClient({ getApiKey, baseUrl: meta.baseUrl });
   } else if (meta.type === "AI marketplace · task API") {
-    clients[providerId] = new KieClient({ providerMeta: meta, getApiKey });
+    client = new KieClient({ providerMeta: meta, getApiKey });
   } else if (meta.type === "OpenRouter Image API") {
-    clients[providerId] = new OpenRouterClient({ baseUrl: meta.baseUrl, getApiKey });
+    client = new OpenRouterClient({ baseUrl: meta.baseUrl, getApiKey });
   } else if (meta.type === "Stable Image API") {
-    clients[providerId] = new StabilityClient({ baseUrl: meta.baseUrl, getApiKey });
+    client = new StabilityClient({ baseUrl: meta.baseUrl, getApiKey });
   } else {
-    clients[providerId] = new OpenAICompatibleClient({ providerMeta: meta, getApiKey });
+    client = new OpenAICompatibleClient({ providerMeta: meta, getApiKey });
   }
-  return clients[providerId];
+  clients.set(providerId, { store, fingerprint, client });
+  return client;
 }
-
-/** Invalidate a cached client (e.g. after a custom provider edit). */
-export function dropClient(providerId: string): void {
-  delete clients[providerId];
-}
-
-/** Meta for any known provider id: full registry entry or a catalog row. */
+export function dropClient(providerId: string): void { clients.delete(providerId); }
 export function metaFor(providerId: string): ProviderMeta | null {
-  const cat = PROVIDER_CATALOG.find((c) => c.id === providerId);
-  return cat ? catalogToMeta(cat) : null;
+  const entry = PROVIDER_CATALOG.find((item) => item.id === providerId);
+  return entry ? catalogToMeta(entry) : null;
 }

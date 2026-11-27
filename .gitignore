@@ -1,4 +1,6 @@
 node_modules/
+# Generated Electron payload; tracked historical copies are not removed by this rule.
+/server/
 .next/
 next-env.d.ts
 *.tsbuildinfo

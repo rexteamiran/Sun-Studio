@@ -1,0 +1,66 @@
+name: QA (non-release)
+
+on:
+  push:
+    branches:
+      - maintenance/0.0.x-hardening
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      NODE_OPTIONS: --unhandled-rejections=strict
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout source without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+      - name: Test awaited runner and failure exit codes
+        run: node --test scripts/test-runner.test.cjs
+      - name: Test migration with synthetic data
+        run: node scripts/test-migration.cjs
+      - name: Test provider clients with mocks
+        run: npm run test:clients
+      - name: Test image contracts without real providers
+        run: node --import tsx --test scripts/test-image-contracts.test.ts
+      - name: Test atomic store commands and endpoint-key binding
+        run: node --import tsx --test scripts/test-store.test.ts
+      - name: Test browser API contracts with mock responses
+        run: node --import tsx --test scripts/test-browser-api.test.ts
+      - name: Test updater with mocked Electron
+        run: npm run test:updater
+      - name: Typecheck maintained source
+        run: npx --no-install tsc --noEmit --incremental false
+      - name: Confirm generated payload is not a TypeScript source tree
+        shell: bash
+        run: |
+          npx --no-install tsc --listFilesOnly --incremental false > "$RUNNER_TEMP/sun-typescript-files.txt"
+          if grep -F "$GITHUB_WORKSPACE/server/" "$RUNNER_TEMP/sun-typescript-files.txt"; then exit 1; fi
+          grep -F "$GITHUB_WORKSPACE/app/" "$RUNNER_TEMP/sun-typescript-files.txt"
+          grep -F "$GITHUB_WORKSPACE/src/" "$RUNNER_TEMP/sun-typescript-files.txt"
+      - name: Build and assemble standalone payload without publishing
+        run: |
+          npm run build
+          npm run prepare:electron
+          node -e "const fs=require('fs');for(const p of ['server/server.js','server/.next/static'])if(!fs.existsSync(p))throw Error('Missing payload: '+p)"

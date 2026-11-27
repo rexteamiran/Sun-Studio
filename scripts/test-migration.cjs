@@ -8,6 +8,7 @@ const fsp = fs.promises;
 const path = require('path');
 const os = require('os');
 const assert = require('assert');
+const { runTests } = require('./test-runner.cjs');
 
 const { run, customKeyEnv } = require('../electron/migrate.cjs');
 
@@ -65,15 +66,8 @@ async function main() {
   };
 
   const result = await run({ userData: ud, dataDir, safeStorage: fakeSafeStorage, fs, path });
-  const checks = [];
-  const test = (name, fn) => {
-    try {
-      fn();
-      checks.push('PASS  ' + name);
-    } catch (e) {
-      checks.push('FAIL  ' + name + ' — ' + e.message);
-    }
-  };
+  const tests = [];
+  const test = (name, fn) => tests.push([name, fn]);
 
   const settings = JSON.parse(await fsp.readFile(path.join(dataDir, 'settings.json'), 'utf8'));
   const secrets = await fsp.readFile(path.join(dataDir, 'secrets.env'), 'utf8');
@@ -153,11 +147,11 @@ async function main() {
     assert.match(r2.skipped, /already present/);
   });
 
+  const summary = await runTests(tests);
   console.log('\n=== migration tests ===');
-  for (const c of checks) console.log(c);
-  const failed = checks.filter((c) => c.startsWith('FAIL')).length;
-  if (failed) process.exit(1);
-  console.log('ALL ' + checks.length + ' MIGRATION TESTS PASSED');
+  for (const result of summary.results) console.log(result.status + '  ' + result.name + (result.error ? ' - ' + result.error : ''));
+  if (summary.failed) process.exitCode = 1;
+  else console.log('ALL ' + summary.passed + ' MIGRATION TESTS PASSED');
 }
 
-main();
+main().catch((error) => { console.error('Migration test runner failed:', error); process.exitCode = 1; });

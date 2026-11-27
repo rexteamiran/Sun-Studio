@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type GalleryEntry } from "./api";
 import { Spinner } from "./ui";
 import type { Toast } from "./Studio";
@@ -14,30 +14,54 @@ export default function GalleryView({
 }) {
   const [items, setItems] = useState<GalleryEntry[] | null>(null);
   const [detail, setDetail] = useState<GalleryEntry | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const removing = useRef(false);
+  const loadSequence = useRef(0);
 
   const load = useCallback(async () => {
+    if (removing.current) return;
+    const sequence = ++loadSequence.current;
+    setError(null);
     try {
-      setItems(await api.gallery());
-    } catch (e) {
-      toast((e as Error).message, "error");
+      const next = await api.gallery();
+      if (sequence === loadSequence.current) setItems(next);
+    } catch (error) {
+      if (sequence !== loadSequence.current) return;
+      const message = error instanceof Error ? error.message : "The gallery could not be loaded.";
+      setError(message);
+      toast(message, "error");
     }
   }, [toast]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => { ++loadSequence.current; };
   }, [load, refreshSignal]);
 
   const remove = async (id: string) => {
+    if (removing.current) return;
+    removing.current = true;
+    setDeleting(true);
+    // Invalidate older refresh responses so they cannot resurrect a deleted item.
+    ++loadSequence.current;
     try {
       await api.galleryDelete(id);
-      setItems((prev) => (prev || []).filter((i) => i.id !== id));
-      setDetail(null);
+      ++loadSequence.current;
+      setItems((prev) => (prev || []).filter((item) => item.id !== id));
+      setDetail((current) => current?.id === id ? null : current);
       toast("Deleted.", "ok");
-    } catch (e) {
-      toast((e as Error).message, "error");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "The image could not be deleted.", "error");
+    } finally {
+      removing.current = false;
+      setDeleting(false);
     }
   };
 
+  if (error && (items === null || !items.length)) {
+    return <div className="card p-4 flex flex-col items-start gap-3" role="alert">Gallery could not be loaded: {error}<button className="btn-ghost" onClick={() => void load()}>Retry</button></div>;
+  }
   if (items === null) {
     return (
       <div className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
@@ -57,8 +81,8 @@ export default function GalleryView({
           </svg>
           <div className="text-[14px] font-semibold">Your gallery is empty</div>
           <div className="text-[12.5px] max-w-sm" style={{ color: "var(--muted)" }}>
-            Images you generate are stored locally on this machine and appear here — always private,
-            never uploaded anywhere else.
+            Images you generate are stored locally on this machine and appear here — stored in your local Gallery,
+            with no Sun Studio cloud sync. AI requests send required inputs to the selected provider.
           </div>
           <a className="btn !py-2 text-[12.5px] mt-1" href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("sun:navigate", { detail: "create" })); }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -72,7 +96,7 @@ export default function GalleryView({
           <ol className="flex flex-col gap-2.5 text-[12.5px]" style={{ color: "var(--muted)" }}>
             <li className="flex gap-2.5">
               <span className="mono-value shrink-0" style={{ color: "var(--accent)" }}>01</span>
-              <span>Add a provider key in <b style={{ color: "var(--ink)" }}>Settings → API Connection</b> — OpenAI, Google, OpenRouter, Stability and more.</span>
+              <span>Add a provider key in <b style={{ color: "var(--ink)" }}>Settings → API Connection</b> - choose from the provider directory.</span>
             </li>
             <li className="flex gap-2.5">
               <span className="mono-value shrink-0" style={{ color: "var(--accent)" }}>02</span>
@@ -84,7 +108,7 @@ export default function GalleryView({
             </li>
           </ol>
           <div className="text-[11.5px] pt-1 border-t" style={{ color: "var(--muted)", borderColor: "var(--line-soft)" }}>
-            Tip: press ⌘/Ctrl+Enter anywhere to generate, and hover a gallery image for its prompt.
+            Tip: press ⌘/Ctrl+Enter in Create to generate, and hover a gallery image for its prompt.
           </div>
         </aside>
       </div>
@@ -93,9 +117,10 @@ export default function GalleryView({
 
   return (
     <div className="flex flex-col gap-4">
+      {error && <p role="alert">Gallery could not be refreshed; showing the last loaded results. {error}</p>}
       <div className="flex items-center justify-between">
         <span className="mono-label">{items.length} images · stored locally on this machine</span>
-        <button className="btn-ghost !py-1.5 text-[12px]" onClick={load}>
+        <button className="btn-ghost !py-1.5 text-[12px]" disabled={deleting} onClick={load}>
           Refresh
         </button>
       </div>
@@ -127,7 +152,7 @@ export default function GalleryView({
             </div>
             <div className="text-[13px]">{detail.prompt}</div>
             <div className="flex gap-2 justify-end">
-              <button className="btn-ghost btn-danger !py-1.5 text-[12px]" onClick={() => remove(detail.id)}>
+              <button className="btn-ghost btn-danger !py-1.5 text-[12px]" disabled={deleting} onClick={() => remove(detail.id)}>
                 Delete
               </button>
               <a className="btn-ghost !py-1.5 text-[12px]" href={detail.url + "?download=1"}>

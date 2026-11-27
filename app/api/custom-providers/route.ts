@@ -1,33 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/src/server/service";
-import { ensureStoreDir } from "@/src/server/store";
+import { store, publicErrorMessage } from "@/src/server/service";
+import { ensureStoreDir, CustomProviderKeySaveError } from "@/src/server/store";
 import { dropClient } from "@/src/server/clients";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Add/edit/delete custom OpenAI-compatible endpoints (Hermes custom_providers pattern). */
+/** Save endpoint and optional key as one serialized Store command. */
 export async function POST(req: NextRequest) {
-  await ensureStoreDir();
-  await store.load();
   try {
+    await ensureStoreDir();
+    await store.load();
     const body = await req.json();
     const action = String(body?.action || "");
     if (action === "save") {
       const p = body.provider || {};
-      await store.saveCustomProvider({
-        id: p.id ? String(p.id) : undefined,
-        label: String(p.label || ""),
-        baseUrl: String(p.baseUrl || ""),
-        models: Array.isArray(p.models) ? p.models : [],
-      });
-      const entry = store.data.customProviders.find((c) => c.label === String(p.label || ""));
-      if (entry) dropClient(entry.id);
-      // a new custom provider may carry its first key alongside
-      if (p.key && String(p.key).trim()) {
-        const id = entry ? entry.id : null;
-        if (id) await store.setApiKey(id, String(p.key).trim());
+      if (p.key !== undefined && typeof p.key !== "string") {
+        return NextResponse.json({ error: "The API key must be text." }, { status: 400 });
       }
+      const key = typeof p.key === "string" ? p.key.trim() : "";
+      if (key.length > 500 || /[\x00-\x1f\x7f]/.test(key)) {
+        return NextResponse.json({ error: "The API key contains unsupported characters or is too long." }, { status: 400 });
+      }
+      const id = await store.saveCustomProvider({
+        id: p.id ? String(p.id) : undefined,
+        label: String(p.label || ""), baseUrl: String(p.baseUrl || ""),
+        models: Array.isArray(p.models) ? p.models : [],
+      }, key || undefined);
+      dropClient(id);
     } else if (action === "delete") {
       const id = String(body?.id || "");
       await store.deleteCustomProvider(id);
@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unknown action." }, { status: 400 });
     }
     return NextResponse.json(store.snapshot());
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+  } catch (error) {
+    if (error instanceof CustomProviderKeySaveError) {
+      dropClient(error.providerId);
+      return NextResponse.json({ error: error.message, endpointSaved: true, providerId: error.providerId }, { status: 409 });
+    }
+    return NextResponse.json({ error: publicErrorMessage(error) }, { status: 400 });
   }
 }

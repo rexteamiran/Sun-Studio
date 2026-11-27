@@ -203,7 +203,7 @@ async function main() {
   await test("openai.generate maps size + quality + background (dall-e-3 override)", async () => {
     const out = await openai.generate({ prompt: "p", model: "dall-e-3", aspect: "2:3", quality: "high", n: 1 });
     assert.strictEqual(out.length, 1);
-    const body = captured.reverse().find((c) => c.name === "openai.generate")!.value as Record<string, unknown>;
+    const body = [...captured].reverse().find((c) => c.name === "openai.generate")!.value as Record<string, unknown>;
     assert.strictEqual(body.size, "1024x1792"); // dall-e-3 portrait override
     assert.strictEqual(body.quality, "hd");
     assert.strictEqual(body.response_format, "b64_json");
@@ -211,7 +211,7 @@ async function main() {
 
   await test("openai.generate passes transparent background for gpt-image-1", async () => {
     await openai.generate({ prompt: "p", model: "gpt-image-1", aspect: "1:1", quality: "medium", n: 1, background: "transparent" });
-    const body = captured.reverse().find((c) => c.name === "openai.generate")!.value as Record<string, unknown>;
+    const body = [...captured].reverse().find((c) => c.name === "openai.generate")!.value as Record<string, unknown>;
     assert.strictEqual(body.size, "1024x1024");
     assert.strictEqual(body.quality, "medium");
     assert.strictEqual(body.background, "transparent");
@@ -220,7 +220,7 @@ async function main() {
   await test("google.generate builds Interactions body with aspect + size", async () => {
     const out = await google.generate({ prompt: "p", model: "gemini-3.1-flash-image", aspect: "16:9", imageSize: "2K", n: 1 });
     assert.strictEqual(out.length, 1);
-    const body = captured.reverse().find((c) => c.name === "google.interactions")!.value as {
+    const body = [...captured].reverse().find((c) => c.name === "google.interactions")!.value as {
       model: string;
       input: { type: string }[];
       response_format: Record<string, unknown>;
@@ -320,7 +320,7 @@ async function main() {
   await test("openrouter.generate body: aspect_ratio + resolution + n", async () => {
     const out = await openrouter.generate({ prompt: "p", model: "or/x", aspect: "16:9", imageSize: "2K", n: 1 });
     assert.strictEqual(out.length, 1);
-    const body = captured.reverse().find((c) => c.name === "openrouter.generate")!.value as Record<string, unknown>;
+    const body = [...captured].reverse().find((c) => c.name === "openrouter.generate")!.value as Record<string, unknown>;
     assert.strictEqual(body.model, "or/x");
     assert.strictEqual(body.aspect_ratio, "16:9");
     assert.strictEqual(body.resolution, "2K");
@@ -329,7 +329,7 @@ async function main() {
 
   await test("openrouter.edit builds input_references data URLs", async () => {
     await openrouter.edit({ imageBuffers: [{ mime: "image/png", data: PNG_B64 }], prompt: "restyle", model: "or/x", aspect: "1:1", n: 1 });
-    const body = captured.reverse().find((c) => c.name === "openrouter.generate")!.value as {
+    const body = [...captured].reverse().find((c) => c.name === "openrouter.generate")!.value as {
       input_references: { image_url: { url: string } }[];
     };
     assert.strictEqual(body.input_references.length, 1);
@@ -362,11 +362,13 @@ async function main() {
     assert.strictEqual(f.fields.aspect_ratio, undefined); // no aspect in img2img
   });
 
-  await test("stability.edit core routes through the sd3.5 family", async () => {
-    await stability.edit({ imageBuffers: [{ mime: "image/png", data: PNG_B64 }], prompt: "edit it", model: "core", n: 1 });
-    const f = stabilityForms[stabilityForms.length - 1];
-    assert.strictEqual(f.fields.model, "sd3.5-medium");
-    assert.strictEqual(f.fields.mode, "image-to-image");
+  await test("stability.edit core rejects instead of silently changing model", async () => {
+    const before = stabilityForms.length;
+    await assert.rejects(
+      stability.edit({ imageBuffers: [{ mime: "image/png", data: PNG_B64 }], prompt: "edit it", model: "core", n: 1 }),
+      /Core and Ultra do not support image-to-image/
+    );
+    assert.strictEqual(stabilityForms.length, before);
   });
 
   console.log("\n=== client tests ===");
@@ -377,4 +379,4 @@ async function main() {
   console.log("ALL " + results.length + " TESTS PASSED");
 }
 
-main();
+main().catch((error) => { console.error('Client test setup failed:', error); server.close(); process.exitCode = 1; });
